@@ -125,6 +125,8 @@ Each adapter documents and manages only the host-specific files needed to expose
 
 Supported agent details and version compatibility are **Open** and must be verified against the host's current official documentation during implementation.
 
+The shared responsibilities and current capability baseline are described in [the agent adapter contract](agent-adapter-contract.md).
+
 ### Project memory
 
 Markdown is the no-service-required baseline. The initial layout and record contract are being established in `memory-contract.md` and the SaaS/BI example. Project-level Markdown can be committed and reviewed with normal PRs.
