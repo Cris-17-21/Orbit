@@ -133,6 +133,8 @@ Markdown is the no-service-required baseline. The initial layout and record cont
 
 Atomic Memory setup is opt-in. The user selects or supplies the relevant project/workspace connection. Orbit must keep personal and shared scopes distinct, preserve provenance, and avoid silently promoting proposed or stale records. Exact authentication, identity mapping, and hosted versus local setup are **Open**.
 
+Current integration findings and the proposed team-memory pilot are recorded in [the Atomic Memory evaluation](atomic-memory-evaluation.md). These findings are not a commitment to ship the integration.
+
 ### SaaS and BI example
 
 The example demonstrates memory categories, a proposed business rule, a proposed technical decision, a draft invitation conversion metric specification, task breakdown, and a focused PR template. The example remains explicitly fictional and unaccepted until a task owner reviews it.
