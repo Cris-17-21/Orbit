@@ -19,29 +19,31 @@ Referencia: [especificación](../docs/specs/orbit-project-skill-install.md) · [
 
 ## T-2.2 — Fuente empaquetada y destinos por agente
 
-Estado actual: implementación y pruebas locales en curso; pendiente revisión del checkpoint de compatibilidad de hosts.
+Estado actual: integrado en `main` mediante PR #10. Rutas revisadas en documentación oficial de Codex, Antigravity y Claude Code el 2026-10-23.
 
-- [ ] **Aceptación:** El CLI puede leer del binario una copia byte por byte de `skills/orbit/SKILL.md` sin red ni fuente duplicada.
-- [ ] **Aceptación:** Codex/Antigravity comparten y deduplican `.agents/skills/orbit/SKILL.md`; Claude Code usa `.claude/skills/orbit/SKILL.md`.
-- [ ] **Verificar:** pruebas de contenido embebido, rutas, IDs y combinaciones de agentes.
-- [ ] **Dependencias:** T-2.1.
-- [ ] **Archivos probables:** paquete de assets dentro de `skills/`; `internal/skillinstall/` y pruebas.
-- [ ] **PR:** empaquetado y resolución; sin modificar archivos del usuario.
+- [x] **Aceptación:** El CLI puede leer del binario una copia byte por byte de `skills/orbit/SKILL.md` sin red ni fuente duplicada.
+- [x] **Aceptación:** Codex/Antigravity comparten y deduplican `.agents/skills/orbit/SKILL.md`; Claude Code usa `.claude/skills/orbit/SKILL.md`.
+- [x] **Verificar:** pruebas de contenido embebido, rutas, IDs y combinaciones de agentes.
+- [x] **Dependencias:** T-2.1, integrada en `main` mediante PR #9.
+- [x] **Archivos probables:** `skills/embed.go`, `internal/skillinstall/resolve.go` y su prueba.
+- [x] **PR:** PR #10 integrado en `main`; sin modificar archivos de proyectos.
 
 ## Checkpoint T-2.2
 
-- [ ] Revisar los destinos frente a la documentación actual de los tres hosts.
-- [ ] Aceptar el plan completo por agente antes de conectar la interfaz CLI.
+- [x] Revisar los destinos frente a la documentación oficial actual de los tres hosts (2026-10-23; enlaces en el plan y la especificación).
+- [x] Aceptar el plan completo por agente antes de conectar la interfaz CLI.
 
 ## T-2.3 — Comando `orbit skill install`
 
-- [ ] **Aceptación:** Selección de agentes, vista previa, confirmación y mensajes de resultado en español.
-- [ ] **Aceptación:** `--dry-run` no escribe; modo no interactivo necesita `--yes`; cancelar no escribe.
-- [ ] **Aceptación:** Conflictos se omiten sin reemplazos; destinos independientes sí pueden instalarse y registrarse.
-- [ ] **Verificar:** pruebas de argumentos, selección, cancelación, plan seco, aplicación y conflicto parcial; `go test ./...`, `go vet ./...` y revisión manual de un proyecto temporal.
-- [ ] **Dependencias:** T-2.1 y T-2.2.
-- [ ] **Archivos probables:** `cmd/orbit/main.go`, `cmd/orbit/main_test.go`; actualización mínima del README si corresponde.
-- [ ] **PR:** una entrega enfocada del comando y su documentación.
+Estado actual: implementado y verificado localmente; pendiente revisión del PR.
+
+- [x] **Aceptación:** Selección interactiva o por flags, vista previa, confirmación y mensajes de resultado en español.
+- [x] **Aceptación:** `--dry-run` no escribe; modo no interactivo necesita `--yes`; cancelar no escribe.
+- [x] **Aceptación:** Conflictos se conservan sin reemplazos; destinos independientes se pueden instalar y registrar.
+- [x] **Verificar:** pruebas de argumentos, selección, cancelación, plan seco, aplicación y conflicto parcial; `go test ./... -count=1`, `go vet ./...` y `git diff --check`.
+- [x] **Dependencias:** T-2.1 y T-2.2 integradas en `main` mediante PR #9 y PR #10.
+- [x] **Archivos probables:** `cmd/orbit/main.go`, `cmd/orbit/main_test.go`.
+- [ ] **PR:** entrega enfocada del comando pendiente de creación/revisión.
 
 ## Checkpoint final
 

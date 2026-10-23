@@ -1,7 +1,7 @@
 # Plan de implementación: instalación de skills de Orbit por proyecto
 
 - especificación: [instalar la skill de Orbit en un proyecto](../docs/specs/orbit-project-skill-install.md)
-- estado: T-2.1 integrada en main mediante PR #9; T-2.2 en progreso
+- estado: T-2.1 integrada mediante PR #9; T-2.2 integrada mediante PR #10; T-2.3 implementada y verificada localmente
 - lista de tareas: [orbit-skill-install-todo.md](orbit-skill-install-todo.md)
 - alcance: T-2, instalar la skill de entrada en proyectos con Codex, Claude Code y/o Antigravity
 - separación: este plan no reemplaza [el plan de Atomic Memory](plan.md) ni su lista de tareas.
@@ -72,6 +72,8 @@ La planificación inspecciona el manifiesto, los archivos destino y las carpetas
 
 ### T-2.2 — Fuente empaquetada y resolución de destinos por agente
 
+**Estado:** integrada en `main` mediante PR #10. Las rutas se volvieron a contrastar el 2026-10-23 con la [documentación de skills de Codex](https://learn.chatgpt.com/docs/build-skills), la [documentación de Antigravity](https://antigravity.google/docs/skills?app=antigravity-ide) y la [documentación de Agent Skills de Claude](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview).
+
 **Resultado:** La skill fuente canónica está disponible desde el binario de Orbit y cada agente objetivo produce sus destinos de proyecto correctos.
 
 **Criterios:**
@@ -89,6 +91,8 @@ La planificación inspecciona el manifiesto, los archivos destino y las carpetas
 **Alcance:** mediano, máximo cinco archivos. Todavía sin comando CLI.
 
 ### T-2.3 — Comando `orbit skill install`
+
+**Estado:** implementación y pruebas completas en esta rama; pendiente revisión del PR.
 
 **Resultado:** La persona elige los agentes y puede revisar o aplicar la instalación al proyecto actual.
 

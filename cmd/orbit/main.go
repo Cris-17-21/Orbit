@@ -16,6 +16,7 @@ import (
 	"github.com/Cris-17-21/Orbit/internal/claudecodeconfig"
 	"github.com/Cris-17-21/Orbit/internal/codexconfig"
 	"github.com/Cris-17-21/Orbit/internal/initmemory"
+	"github.com/Cris-17-21/Orbit/internal/skillinstall"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -50,6 +51,8 @@ func executeWithCodexLister(args []string, workingDirectory string, stdout, stde
 	switch args[0] {
 	case "init":
 		return runInit(args[1:], workingDirectory, stdout, stderr, interactive, confirm)
+	case "skill":
+		return runSkill(args[1:], workingDirectory, stdout, stderr, interactive)
 	case "memory":
 		return runMemory(args[1:], workingDirectory, stdout, stderr, interactive, confirm, listServers)
 	case "help":
@@ -60,6 +63,257 @@ func executeWithCodexLister(args []string, workingDirectory string, stdout, stde
 		printHelp(stderr)
 		return 2
 	}
+}
+
+func runSkill(args []string, workingDirectory string, stdout, stderr io.Writer, interactive bool) int {
+	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+		printSkillHelp(stdout)
+		return 0
+	}
+	if args[0] != "install" {
+		fmt.Fprintf(stderr, "Orbit: subcomando de skills desconocido %q\n", args[0])
+		printSkillHelp(stderr)
+		return 2
+	}
+	return runSkillInstall(args[1:], workingDirectory, stdout, stderr, interactive)
+}
+
+func runSkillInstall(args []string, workingDirectory string, stdout, stderr io.Writer, interactive bool) int {
+	return runSkillInstallWithConfirmation(args, workingDirectory, stdout, stderr, interactive, confirmManagedPlan)
+}
+
+type managedConfirmationFunc func(initmemory.ManagedFilesPlan, io.Reader, io.Writer) (bool, error)
+
+func runSkillInstallWithConfirmation(args []string, workingDirectory string, stdout, stderr io.Writer, interactive bool, confirm managedConfirmationFunc) int {
+	flags := flag.NewFlagSet("orbit skill install", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	codex := flags.Bool("codex", false, "instala la skill para Codex")
+	claude := flags.Bool("claude", false, "instala la skill para Claude Code")
+	antigravity := flags.Bool("antigravity", false, "instala la skill para Antigravity")
+	yes := flags.Bool("yes", false, "aplica el plan mostrado sin pedir confirmación interactiva")
+	dryRun := flags.Bool("dry-run", false, "muestra el plan sin escribir archivos")
+	flags.Usage = func() { printSkillHelp(stderr) }
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintf(stderr, "Orbit: argumento inesperado %q\n", flags.Arg(0))
+		printSkillHelp(stderr)
+		return 2
+	}
+	if *yes && *dryRun {
+		fmt.Fprintln(stderr, "Orbit: --yes y --dry-run son opciones incompatibles")
+		return 2
+	}
+	var agents []skillinstall.Agent
+	if *codex {
+		agents = append(agents, skillinstall.Codex)
+	}
+	if *claude {
+		agents = append(agents, skillinstall.ClaudeCode)
+	}
+	if *antigravity {
+		agents = append(agents, skillinstall.Antigravity)
+	}
+	if len(agents) == 0 {
+		if !interactive {
+			fmt.Fprintln(stderr, "Orbit: selecciona uno o más agentes con --codex, --claude o --antigravity")
+			return 2
+		}
+		var err error
+		agents, err = selectSkillAgents(os.Stdin, stdout)
+		if err != nil {
+			fmt.Fprintln(stderr, "Orbit: no se pudo seleccionar agentes:", err)
+			return 1
+		}
+		if len(agents) == 0 {
+			fmt.Fprintln(stdout, "Cancelado. No se escribió ningún archivo.")
+			return 0
+		}
+	}
+	root, err := initmemory.FindGitRoot(workingDirectory)
+	if err != nil {
+		fmt.Fprintln(stderr, "Orbit:", err)
+		return 1
+	}
+	updates, err := skillinstall.Resolve(agents...)
+	if err != nil {
+		fmt.Fprintln(stderr, "Orbit:", err)
+		return 1
+	}
+	plan, err := initmemory.PlanManagedFiles(root, updates)
+	if err != nil {
+		fmt.Fprintln(stderr, "Orbit:", err)
+		return 1
+	}
+	printManagedPlan(stdout, plan, agents)
+	if *dryRun {
+		fmt.Fprintln(stdout, "Vista previa únicamente; no se escribió ningún archivo.")
+		return 0
+	}
+	if managedCreateCount(plan) > 0 && !*yes {
+		if !interactive {
+			fmt.Fprintln(stderr, "Orbit: este comando requiere confirmación; ejecútalo en una terminal o pasa --yes para aplicar el plan mostrado")
+			return 2
+		}
+		if confirm == nil {
+			fmt.Fprintln(stderr, "Orbit: la confirmación interactiva no está disponible")
+			return 2
+		}
+		accepted, err := confirm(plan, os.Stdin, stdout)
+		if err != nil {
+			fmt.Fprintln(stderr, "Orbit: falló la confirmación:", err)
+			return 1
+		}
+		if !accepted {
+			fmt.Fprintln(stdout, "Cancelado. No se escribió ningún archivo.")
+			return 0
+		}
+	}
+	result, err := initmemory.ApplyManagedFiles(plan)
+	if err != nil {
+		fmt.Fprintln(stderr, "Orbit:", err)
+		return 1
+	}
+	printSummary(stdout, result)
+	if len(result.Conflicts) > 0 {
+		return 1
+	}
+	return 0
+}
+
+func managedCreateCount(plan initmemory.ManagedFilesPlan) int {
+	count := 0
+	for _, entry := range plan.Entries {
+		if entry.Status == initmemory.StatusCreate {
+			count++
+		}
+	}
+	return count
+}
+
+func printManagedPlan(out io.Writer, plan initmemory.ManagedFilesPlan, agents []skillinstall.Agent) {
+	labels := make([]string, 0, len(agents))
+	seen := make(map[skillinstall.Agent]bool)
+	for _, agent := range agents {
+		if seen[agent] {
+			continue
+		}
+		seen[agent] = true
+		switch agent {
+		case skillinstall.Codex:
+			labels = append(labels, "Codex")
+		case skillinstall.ClaudeCode:
+			labels = append(labels, "Claude Code")
+		case skillinstall.Antigravity:
+			labels = append(labels, "Antigravity")
+		}
+	}
+	fmt.Fprintf(out, "Orbit instalará su skill para %s en %s\n", strings.Join(labels, ", "), plan.Root)
+	if seen[skillinstall.Codex] && seen[skillinstall.Antigravity] {
+		fmt.Fprintln(out, "Codex y Antigravity descubrirán la misma copia en .agents/skills/orbit/.")
+	}
+	for _, entry := range plan.Entries {
+		switch entry.Status {
+		case initmemory.StatusCreate:
+			fmt.Fprintf(out, "  + instalar       %s\n", entry.Path)
+		case initmemory.StatusPresent:
+			fmt.Fprintf(out, "  = ya instalada   %s\n", entry.Path)
+		case initmemory.StatusConflict, initmemory.StatusModified:
+			fmt.Fprintf(out, "  ! conflicto      %s — %s\n", entry.Path, entry.Reason)
+		}
+	}
+}
+
+type skillAgentSelector struct {
+	cursor   int
+	selected map[int]bool
+	done     bool
+}
+
+func (m skillAgentSelector) Init() tea.Cmd { return nil }
+func (m skillAgentSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
+	switch key.String() {
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case "down", "j":
+		if m.cursor < 2 {
+			m.cursor++
+		}
+	case " ":
+		m.selected[m.cursor] = !m.selected[m.cursor]
+	case "enter":
+		m.done = true
+		return m, tea.Quit
+	case "q", "esc", "ctrl+c":
+		m.selected = map[int]bool{}
+		m.done = true
+		return m, tea.Quit
+	}
+	return m, nil
+}
+func (m skillAgentSelector) View() string {
+	var view strings.Builder
+	fmt.Fprintln(&view, lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86")).Render("Orbit · Agentes para instalar"))
+	fmt.Fprintln(&view, "Selecciona con Espacio y confirma con Enter:")
+	names := []string{"Codex", "Claude Code", "Antigravity"}
+	for i, name := range names {
+		marker, checked := " ", " "
+		if m.cursor == i {
+			marker = ">"
+		}
+		if m.selected[i] {
+			checked = "x"
+		}
+		fmt.Fprintf(&view, "%s [%s] %s\n", marker, checked, name)
+	}
+	fmt.Fprintln(&view, "q cancela")
+	return view.String()
+}
+func selectSkillAgents(input io.Reader, output io.Writer) ([]skillinstall.Agent, error) {
+	model := skillAgentSelector{selected: make(map[int]bool)}
+	program := tea.NewProgram(model, tea.WithInput(input), tea.WithOutput(output))
+	final, err := program.Run()
+	if err != nil {
+		return nil, err
+	}
+	selection, ok := final.(skillAgentSelector)
+	if !ok || !selection.done {
+		return nil, errors.New("el selector terminó sin decisión")
+	}
+	var agents []skillinstall.Agent
+	if selection.selected[0] {
+		agents = append(agents, skillinstall.Codex)
+	}
+	if selection.selected[1] {
+		agents = append(agents, skillinstall.ClaudeCode)
+	}
+	if selection.selected[2] {
+		agents = append(agents, skillinstall.Antigravity)
+	}
+	return agents, nil
+}
+
+func confirmManagedPlan(plan initmemory.ManagedFilesPlan, input io.Reader, output io.Writer) (bool, error) {
+	program := tea.NewProgram(confirmationModel{root: plan.Root, entries: plan.Entries}, tea.WithInput(input), tea.WithOutput(output))
+	final, err := program.Run()
+	if err != nil {
+		return false, err
+	}
+	confirmation, ok := final.(confirmationModel)
+	if !ok || !confirmation.done {
+		return false, errors.New("la confirmación terminó sin una decisión")
+	}
+	return confirmation.confirmed, nil
 }
 
 func runMemory(args []string, workingDirectory string, stdout, stderr io.Writer, interactive bool, confirm confirmationFunc, listServers codexServerLister) int {
@@ -417,7 +671,15 @@ func printHelp(out io.Writer) {
 	fmt.Fprintln(out, "Comandos:")
 	fmt.Fprintln(out, "  init       Inicializa la memoria Markdown del proyecto")
 	fmt.Fprintln(out, "  memory     Configura una integración personal de Atomic Memory")
+	fmt.Fprintln(out, "  skill      Instala skills de Orbit en un proyecto")
 	fmt.Fprintln(out, "  help       Muestra esta ayuda")
+}
+
+func printSkillHelp(out io.Writer) {
+	fmt.Fprintln(out, "Uso: orbit skill install [--codex] [--claude] [--antigravity] [--dry-run | --yes]")
+	fmt.Fprintln(out, "Instala la skill de Orbit en el proyecto Git actual. En una terminal puedes elegir agentes interactivamente.")
+	fmt.Fprintln(out, "Codex y Antigravity comparten .agents/skills/orbit/; Claude Code usa .claude/skills/orbit/.")
+	fmt.Fprintln(out, "--dry-run muestra el plan sin escribir; sin terminal, la aplicación requiere --yes.")
 }
 
 func printMemoryHelp(out io.Writer) {
@@ -451,7 +713,8 @@ func printSummary(out io.Writer, result initmemory.Result) {
 }
 
 type confirmationModel struct {
-	plan      initmemory.Plan
+	root      string
+	entries   []initmemory.Entry
 	selected  int
 	confirmed bool
 	done      bool
@@ -490,7 +753,7 @@ func (m confirmationModel) View() string {
 	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86")).Render("Orbit · Confirmar cambios")
 	view.WriteString(header + "\n\n")
 	view.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("Se aplicarán los siguientes cambios:") + "\n")
-	for _, entry := range m.plan.Entries {
+	for _, entry := range m.entries {
 		if entry.Status != initmemory.StatusPresent {
 			fmt.Fprintf(&view, "  %s %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render("•"), entry.Path)
 		}
@@ -511,7 +774,7 @@ func (m confirmationModel) View() string {
 }
 
 func confirmPlan(plan initmemory.Plan, input io.Reader, output io.Writer) (bool, error) {
-	program := tea.NewProgram(confirmationModel{plan: plan}, tea.WithInput(input), tea.WithOutput(output))
+	program := tea.NewProgram(confirmationModel{root: plan.Root, entries: plan.Entries}, tea.WithInput(input), tea.WithOutput(output))
 	finalModel, err := program.Run()
 	if err != nil {
 		return false, err
