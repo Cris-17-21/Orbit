@@ -148,6 +148,8 @@ The example demonstrates memory categories, a proposed business rule, a proposed
 
 The exact ownership manifest format and behavior when users edit managed files are **Open**.
 
+The proposed manifest and conflict-handling rules are detailed in [installation ownership](install-ownership.md).
+
 ## Quality attributes
 
 - **Portable:** usable on supported Windows, macOS, and Linux environments; exact platform matrix is **Open**.
