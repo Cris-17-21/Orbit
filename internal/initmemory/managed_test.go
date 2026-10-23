@@ -122,6 +122,274 @@ func TestUpdateManagedFilesPreservesUnownedExistingTarget(t *testing.T) {
 	}
 }
 
+func TestManagedFilePlanCreatesManifestBeforeOrbitInit(t *testing.T) {
+	root := makeGitRepo(t)
+	update := ManagedFileUpdate{
+		Path: ".agents/skills/orbit/SKILL.md", ResourceID: "project-orbit-orchestrator-skill",
+		Source: "orbit-skill-install", Content: []byte("---\nname: orbit\n---\n"),
+	}
+	plan, err := PlanManagedFiles(root, []ManagedFileUpdate{update})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Entries) != 1 || plan.Entries[0].Status != StatusCreate {
+		t.Fatalf("plan entries = %#v, want one create", plan.Entries)
+	}
+	result, err := ApplyManagedFiles(plan)
+	if err != nil {
+		t.Fatalf("ApplyManagedFiles() error = %v", err)
+	}
+	if len(result.Created) != 1 {
+		t.Fatalf("created entries = %d, want 1", len(result.Created))
+	}
+
+	manifestPath := filepath.Join(root, ".orbit", "manifest.json")
+	manifestBytes, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read manifest created by skill install: %v", err)
+	}
+	var manifest Manifest
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.Resources) != 1 || manifest.Resources[0].InstalledDigest != digest(update.Content) {
+		t.Fatalf("manifest resources = %#v, want the installed skill", manifest.Resources)
+	}
+
+	initPlan, err := BuildPlan(root)
+	if err != nil {
+		t.Fatalf("BuildPlan() after skill install: %v", err)
+	}
+	if _, err := Apply(initPlan); err != nil {
+		t.Fatalf("Apply() after skill install: %v", err)
+	}
+	manifestBytes, err = os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.Resources) != 5 {
+		t.Fatalf("manifest resources after orbit init = %d, want 5 (skill plus four init resources)", len(manifest.Resources))
+	}
+}
+
+func TestManagedFilePlanSkipsUnownedConflictAndAppliesIndependentTarget(t *testing.T) {
+	root := makeGitRepo(t)
+	conflictPath := filepath.Join(root, ".claude", "skills", "orbit", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(conflictPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	wantConflict := []byte("personal skill\n")
+	if err := os.WriteFile(conflictPath, wantConflict, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := PlanManagedFiles(root, []ManagedFileUpdate{
+		{Path: ".agents/skills/orbit/SKILL.md", ResourceID: "project-orbit-skill-common", Source: "orbit-skill-install", Content: []byte("orbit skill\n")},
+		{Path: ".claude/skills/orbit/SKILL.md", ResourceID: "project-orbit-skill-claude", Source: "orbit-skill-install", Content: []byte("orbit skill\n")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Entries) != 2 || plan.Entries[0].Status != StatusCreate || plan.Entries[1].Status != StatusConflict {
+		t.Fatalf("plan entries = %#v, want create then conflict", plan.Entries)
+	}
+	result, err := ApplyManagedFiles(plan)
+	if err != nil {
+		t.Fatalf("ApplyManagedFiles() error = %v", err)
+	}
+	if len(result.Created) != 1 || len(result.Conflicts) != 1 {
+		t.Fatalf("result = %#v, want one installed file and one conflict", result)
+	}
+	gotConflict, err := os.ReadFile(conflictPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(gotConflict) != string(wantConflict) {
+		t.Fatalf("conflicting skill changed: got %q, want %q", gotConflict, wantConflict)
+	}
+}
+
+func TestManagedFilePlanRecognizesOwnedTargetAndPreservesEditedTarget(t *testing.T) {
+	root := makeGitRepo(t)
+	path := ".agents/skills/orbit/SKILL.md"
+	update := ManagedFileUpdate{Path: path, ResourceID: "project-orbit-skill-common", Source: "orbit-skill-install", Content: []byte("orbit skill\n")}
+	plan, err := PlanManagedFiles(root, []ManagedFileUpdate{update})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ApplyManagedFiles(plan); err != nil {
+		t.Fatal(err)
+	}
+	plan, err = PlanManagedFiles(root, []ManagedFileUpdate{update})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Entries[0].Status != StatusPresent {
+		t.Fatalf("unchanged owned status = %q, want %q", plan.Entries[0].Status, StatusPresent)
+	}
+
+	edited := []byte("collaborator edit\n")
+	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(path)), edited, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	plan, err = PlanManagedFiles(root, []ManagedFileUpdate{update})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Entries[0].Status != StatusModified {
+		t.Fatalf("edited owned status = %q, want %q", plan.Entries[0].Status, StatusModified)
+	}
+	result, err := ApplyManagedFiles(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Conflicts) != 1 {
+		t.Fatalf("conflicts = %d, want 1", len(result.Conflicts))
+	}
+	got, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(edited) {
+		t.Fatalf("edited target changed: got %q, want %q", got, edited)
+	}
+}
+
+func TestApplyManagedFilesRejectsTargetCreatedAfterPlan(t *testing.T) {
+	root := makeGitRepo(t)
+	path := ".agents/skills/orbit/SKILL.md"
+	plan, err := PlanManagedFiles(root, []ManagedFileUpdate{{Path: path, ResourceID: "project-orbit-skill-common", Source: "orbit-skill-install", Content: []byte("orbit skill\n")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created := []byte("created after preview\n")
+	absolutePath := filepath.Join(root, filepath.FromSlash(path))
+	if err := os.MkdirAll(filepath.Dir(absolutePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(absolutePath, created, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ApplyManagedFiles(plan); err == nil {
+		t.Fatal("ApplyManagedFiles() succeeded after the planned target appeared")
+	}
+	got, err := os.ReadFile(absolutePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(created) {
+		t.Fatalf("raced target changed: got %q, want %q", got, created)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".orbit", "manifest.json")); !os.IsNotExist(err) {
+		t.Fatalf("manifest was unexpectedly created after a stale plan: err = %v", err)
+	}
+}
+
+func TestApplyManagedFilesRejectsManifestChangedAfterPlan(t *testing.T) {
+	root := makeGitRepo(t)
+	manifest := newManifest(root)
+	manifestPath := filepath.Join(root, ".orbit", "manifest.json")
+	if err := os.MkdirAll(filepath.Dir(manifestPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeManifest(manifestPath, manifest); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := PlanManagedFiles(root, []ManagedFileUpdate{{Path: ".agents/skills/orbit/SKILL.md", ResourceID: "project-orbit-skill-common", Source: "orbit-skill-install", Content: []byte("orbit skill\n")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest.OrbitVersion = "changed-after-preview"
+	if err := writeManifest(manifestPath, manifest); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ApplyManagedFiles(plan); err == nil {
+		t.Fatal("ApplyManagedFiles() succeeded after the manifest changed")
+	}
+	if _, err := os.Stat(filepath.Join(root, ".agents", "skills", "orbit", "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("skill was written after the manifest changed: err = %v", err)
+	}
+}
+
+func TestApplyManagedFilesRejectsPresentTargetChangedAfterPlan(t *testing.T) {
+	root := makeGitRepo(t)
+	present := ManagedFileUpdate{Path: ".agents/skills/orbit/SKILL.md", ResourceID: "project-orbit-skill-common", Source: "orbit-skill-install", Content: []byte("orbit skill\n")}
+	plan, err := PlanManagedFiles(root, []ManagedFileUpdate{present})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ApplyManagedFiles(plan); err != nil {
+		t.Fatal(err)
+	}
+	plan, err = PlanManagedFiles(root, []ManagedFileUpdate{
+		present,
+		{Path: ".claude/skills/orbit/SKILL.md", ResourceID: "project-orbit-skill-claude", Source: "orbit-skill-install", Content: []byte("orbit skill\n")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Entries[0].Status != StatusPresent || plan.Entries[1].Status != StatusCreate {
+		t.Fatalf("plan entries = %#v, want present then create", plan.Entries)
+	}
+	edited := []byte("edited after preview\n")
+	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(present.Path)), edited, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ApplyManagedFiles(plan); err == nil {
+		t.Fatal("ApplyManagedFiles() succeeded after a present target changed")
+	}
+	if _, err := os.Stat(filepath.Join(root, ".claude", "skills", "orbit", "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("independent target was written after a stale plan: err = %v", err)
+	}
+}
+
+func TestApplyManagedFilesRejectsMutatedPlanEntries(t *testing.T) {
+	root := makeGitRepo(t)
+	plan, err := PlanManagedFiles(root, []ManagedFileUpdate{{Path: ".agents/skills/orbit/SKILL.md", ResourceID: "project-orbit-skill-common", Source: "orbit-skill-install", Content: []byte("orbit skill\n")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan.Entries[0].Status = StatusPresent
+	if _, err := ApplyManagedFiles(plan); err == nil {
+		t.Fatal("ApplyManagedFiles() accepted an edited plan")
+	}
+	if _, err := os.Stat(filepath.Join(root, ".orbit", "manifest.json")); !os.IsNotExist(err) {
+		t.Fatalf("manifest was unexpectedly created for an edited plan: err = %v", err)
+	}
+}
+
+func TestPlanManagedFilesRejectsInvalidManifestWithoutWriting(t *testing.T) {
+	root := makeGitRepo(t)
+	manifestPath := filepath.Join(root, ".orbit", "manifest.json")
+	if err := os.MkdirAll(filepath.Dir(manifestPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifestPath, []byte("not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := PlanManagedFiles(root, []ManagedFileUpdate{{Path: ".agents/skills/orbit/SKILL.md", ResourceID: "project-orbit-skill-common", Source: "orbit-skill-install", Content: []byte("orbit skill\n")}})
+	if err == nil {
+		t.Fatal("PlanManagedFiles() accepted an invalid manifest")
+	}
+	if _, err := os.Stat(filepath.Join(root, ".agents", "skills", "orbit", "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("planning wrote the skill: err = %v", err)
+	}
+}
+
+func TestPlanManagedFilesRejectsUnsafeAndReservedTargets(t *testing.T) {
+	root := makeGitRepo(t)
+	for _, path := range []string{"../outside.txt", ".orbit/manifest.json", ".orbit/init.lock"} {
+		t.Run(path, func(t *testing.T) {
+			_, err := PlanManagedFiles(root, []ManagedFileUpdate{{Path: path, ResourceID: "resource", Source: "test", Content: []byte("content")}})
+			if err == nil {
+				t.Fatalf("PlanManagedFiles() accepted unsafe/reserved target %q", path)
+			}
+		})
+	}
+}
+
 func TestUpdateManagedConfigEntriesMergesAndRegistersOnlyTheEntry(t *testing.T) {
 	root := makeGitRepo(t)
 	initial, err := BuildPlan(root)

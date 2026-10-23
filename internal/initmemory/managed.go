@@ -12,10 +12,12 @@ import (
 
 // ManagedFileUpdate describes a project file Orbit owns and wants to update.
 type ManagedFileUpdate struct {
-	Path       string
-	ResourceID string
-	Source     string
-	Content    []byte
+	Path           string
+	ResourceID     string
+	Source         string
+	Content        []byte
+	ExpectedDigest string
+	ExpectedAbsent bool
 }
 
 // ManagedJSONEntryUpdate describes one namespaced key inside a shared JSON
@@ -137,11 +139,39 @@ func UpdateManagedFiles(root string, updates []ManagedFileUpdate) error {
 // are retained, and an existing target key is changed only when its installed
 // value matches the digest recorded by Orbit.
 func UpdateManagedFilesWithJSONEntries(root string, updates []ManagedFileUpdate, entryUpdates []ManagedJSONEntryUpdate) error {
+	return updateManagedFilesWithSnapshot(root, updates, entryUpdates, nil)
+}
+
+type manifestSnapshot struct {
+	exists  bool
+	digest  string
+	targets []managedTargetSnapshot
+}
+
+type managedTargetSnapshot struct {
+	path  string
+	state fileSnapshot
+}
+
+func updateManagedFilesWithSnapshot(root string, updates []ManagedFileUpdate, entryUpdates []ManagedJSONEntryUpdate, snapshot *manifestSnapshot) error {
 	absoluteRoot, err := filepath.Abs(root)
 	if err != nil {
 		return fmt.Errorf("resolve project root: %w", err)
 	}
 	metadataDir := filepath.Join(absoluteRoot, filepath.Dir(filepath.FromSlash(manifestRelativePath)))
+	if err := validateManagedParentDirectories(absoluteRoot, manifestRelativePath); err != nil {
+		return err
+	}
+	createdDirectories, err := makeDirectory(metadataDir)
+	if err != nil {
+		return fmt.Errorf("prepare Orbit metadata directory: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			removeEmptyDirectories(createdDirectories)
+		}
+	}()
 	lockPath := filepath.Join(metadataDir, manifestLockName)
 	lock, err := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
@@ -153,13 +183,37 @@ func UpdateManagedFilesWithJSONEntries(root string, updates []ManagedFileUpdate,
 	}
 	defer os.Remove(lockPath)
 	manifestPath := filepath.Join(absoluteRoot, filepath.FromSlash(manifestRelativePath))
-	manifestBytes, err := os.ReadFile(manifestPath)
-	if err != nil {
-		return fmt.Errorf("read Orbit manifest: %w", err)
+	manifestInfo, manifestStatErr := os.Lstat(manifestPath)
+	manifestExists := manifestStatErr == nil
+	var manifestBytes []byte
+	var manifest Manifest
+	if errors.Is(manifestStatErr, os.ErrNotExist) {
+		if snapshot == nil {
+			return errors.New("Orbit manifest is missing; run orbit init before updating managed resources")
+		}
+		manifest = newManifest(absoluteRoot)
+	} else if manifestStatErr != nil {
+		return fmt.Errorf("inspect Orbit manifest: %w", manifestStatErr)
+	} else {
+		if !manifestInfo.Mode().IsRegular() || manifestInfo.Mode()&os.ModeSymlink != 0 {
+			return errors.New("Orbit manifest is not a regular file; no project files were changed")
+		}
+		manifestBytes, err = os.ReadFile(manifestPath)
+		if err != nil {
+			return fmt.Errorf("read Orbit manifest: %w", err)
+		}
+		manifest, err = parseManifest(manifestBytes, absoluteRoot)
+		if err != nil {
+			return err
+		}
 	}
-	manifest, err := parseManifest(manifestBytes, absoluteRoot)
-	if err != nil {
-		return err
+	if snapshot != nil && (snapshot.exists != manifestExists || (snapshot.exists && snapshot.digest != digest(manifestBytes))) {
+		return errors.New("Orbit manifest changed after the preview; no project files were changed")
+	}
+	if snapshot != nil {
+		if err := verifyManagedTargetSnapshots(absoluteRoot, snapshot.targets); err != nil {
+			return err
+		}
 	}
 	if len(updates) == 0 && len(entryUpdates) == 0 {
 		return nil
@@ -172,6 +226,7 @@ func UpdateManagedFilesWithJSONEntries(root string, updates []ManagedFileUpdate,
 		}
 		resources[resource.Target] = index
 	}
+	fileSnapshots := make(map[string]fileSnapshot, len(updates))
 	seen := make(map[string]bool, len(updates))
 	for _, update := range updates {
 		if err := validateManagedUpdate(update); err != nil {
@@ -191,6 +246,10 @@ func UpdateManagedFilesWithJSONEntries(root string, updates []ManagedFileUpdate,
 			if owned {
 				return fmt.Errorf("managed file %q disappeared; no files were changed", update.Path)
 			}
+			if update.ExpectedDigest != "" {
+				return fmt.Errorf("managed file %q disappeared after the preview; no files were changed", update.Path)
+			}
+			fileSnapshots[update.Path] = fileSnapshot{}
 			continue
 		}
 		if statErr != nil {
@@ -199,6 +258,9 @@ func UpdateManagedFilesWithJSONEntries(root string, updates []ManagedFileUpdate,
 		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
 			return fmt.Errorf("%q is not a regular file; no files were changed", update.Path)
 		}
+		if update.ExpectedAbsent {
+			return fmt.Errorf("target %q appeared after the preview; no files were changed", update.Path)
+		}
 		if !owned {
 			return fmt.Errorf("%q already exists and is not managed by Orbit; no files were changed", update.Path)
 		}
@@ -206,10 +268,14 @@ func UpdateManagedFilesWithJSONEntries(root string, updates []ManagedFileUpdate,
 		if readErr != nil {
 			return fmt.Errorf("read %q: %w", update.Path, readErr)
 		}
+		if update.ExpectedDigest != "" && digest(current) != update.ExpectedDigest {
+			return fmt.Errorf("target %q changed after the preview; no files were changed", update.Path)
+		}
 		resource := manifest.Resources[resourceIndex]
 		if resource.State != "managed" || digest(current) != resource.InstalledDigest {
 			return fmt.Errorf("%q changed since Orbit installed it; no files were changed", update.Path)
 		}
+		fileSnapshots[update.Path] = fileSnapshot{exists: true, digest: digest(current)}
 	}
 
 	configFiles := make(map[string]*managedJSONFile)
@@ -267,6 +333,10 @@ func UpdateManagedFilesWithJSONEntries(root string, updates []ManagedFileUpdate,
 				return fmt.Errorf("shared JSON config %q changed after the preview; no files were changed", update.Path)
 			}
 		}
+		fileSnapshots[update.Path] = fileSnapshot{exists: file.existed}
+		if file.existed {
+			fileSnapshots[update.Path] = fileSnapshot{exists: true, digest: digest(file.original)}
+		}
 
 		resource, hasResource := Resource{}, false
 		if owned {
@@ -296,9 +366,17 @@ func UpdateManagedFilesWithJSONEntries(root string, updates []ManagedFileUpdate,
 	}
 
 	// Recheck manifest ownership immediately before any file operation.
-	currentManifest, err := os.ReadFile(manifestPath)
-	if err != nil || digest(currentManifest) != digest(manifestBytes) {
-		return errors.New("Orbit manifest changed during configuration; no files were changed")
+	currentManifestInfo, currentManifestErr := os.Lstat(manifestPath)
+	if manifestExists {
+		if currentManifestErr != nil || !currentManifestInfo.Mode().IsRegular() || currentManifestInfo.Mode()&os.ModeSymlink != 0 {
+			return errors.New("Orbit manifest changed during configuration; no files were changed")
+		}
+		currentManifest, readErr := os.ReadFile(manifestPath)
+		if readErr != nil || digest(currentManifest) != digest(manifestBytes) {
+			return errors.New("Orbit manifest changed during configuration; no files were changed")
+		}
+	} else if !errors.Is(currentManifestErr, os.ErrNotExist) {
+		return errors.New("Orbit manifest appeared during configuration; no files were changed")
 	}
 
 	updatedManifest := manifest
@@ -312,6 +390,22 @@ func UpdateManagedFilesWithJSONEntries(root string, updates []ManagedFileUpdate,
 	}
 	for _, update := range allWrites {
 		path := filepath.Join(absoluteRoot, filepath.FromSlash(update.Path))
+		fileInfo, statErr := os.Lstat(path)
+		snapshot := fileSnapshots[update.Path]
+		if snapshot.exists {
+			if statErr != nil || !fileInfo.Mode().IsRegular() || fileInfo.Mode()&os.ModeSymlink != 0 {
+				rollbackManagedFiles(absoluteRoot, allWrites, createdPaths, originals)
+				return fmt.Errorf("target %q changed during configuration; no files were changed", update.Path)
+			}
+			currentBytes, readErr := os.ReadFile(path)
+			if readErr != nil || digest(currentBytes) != snapshot.digest {
+				rollbackManagedFiles(absoluteRoot, allWrites, createdPaths, originals)
+				return fmt.Errorf("target %q changed during configuration; no files were changed", update.Path)
+			}
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			rollbackManagedFiles(absoluteRoot, allWrites, createdPaths, originals)
+			return fmt.Errorf("target %q appeared during configuration; no files were changed", update.Path)
+		}
 		current, readErr := os.ReadFile(path)
 		if file, isConfig := configFiles[update.Path]; isConfig {
 			if file.existed && (readErr != nil || digest(current) != digest(file.original)) {
@@ -329,13 +423,21 @@ func UpdateManagedFilesWithJSONEntries(root string, updates []ManagedFileUpdate,
 			rollbackManagedFiles(absoluteRoot, allWrites, createdPaths, originals)
 			return fmt.Errorf("read %q: %w", update.Path, readErr)
 		}
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		created, dirErr := makeDirectory(filepath.Dir(path))
+		if dirErr != nil {
 			rollbackManagedFiles(absoluteRoot, allWrites, createdPaths, originals)
-			return fmt.Errorf("create directory for %q: %w", update.Path, err)
+			return fmt.Errorf("create directory for %q: %w", update.Path, dirErr)
 		}
-		if err := writeManagedFile(path, update.Content); err != nil {
+		createdDirectories = append(createdDirectories, created...)
+		var writeErr error
+		if update.ExpectedAbsent {
+			writeErr = createManagedFile(path, update.Content)
+		} else {
+			writeErr = writeManagedFile(path, update.Content)
+		}
+		if writeErr != nil {
 			rollbackManagedFiles(absoluteRoot, allWrites, createdPaths, originals)
-			return fmt.Errorf("write %q: %w", update.Path, err)
+			return fmt.Errorf("write %q: %w", update.Path, writeErr)
 		}
 		if _, existed := originals[update.Path]; !existed {
 			createdPaths = append(createdPaths, update.Path)
@@ -373,11 +475,63 @@ func UpdateManagedFilesWithJSONEntries(root string, updates []ManagedFileUpdate,
 			}
 		}
 	}
-	if err := writeManifest(manifestPath, updatedManifest); err != nil {
+	var writeErr error
+	if !manifestExists {
+		writeErr = writeManifestExclusive(manifestPath, updatedManifest)
+	} else {
+		writeErr = writeManifest(manifestPath, updatedManifest)
+	}
+	if writeErr != nil {
 		rollbackManagedFiles(absoluteRoot, allWrites, createdPaths, originals)
-		return fmt.Errorf("write Orbit manifest: %w", err)
+		return fmt.Errorf("write Orbit manifest: %w", writeErr)
+	}
+	committed = true
+	return nil
+}
+
+type fileSnapshot struct {
+	exists     bool
+	digest     string
+	mode       os.FileMode
+	linkTarget string
+}
+
+func verifyManagedTargetSnapshots(root string, targets []managedTargetSnapshot) error {
+	for _, target := range targets {
+		if !safeRelativePath(target.path) {
+			return fmt.Errorf("unsafe managed target %q in plan", target.path)
+		}
+		path := filepath.Join(root, filepath.FromSlash(target.path))
+		info, err := os.Lstat(path)
+		if !target.state.exists {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return fmt.Errorf("target %q appeared after the preview; no project files were changed", target.path)
+		}
+		if err != nil || info.Mode().Type() != target.state.mode {
+			return fmt.Errorf("target %q changed after the preview; no project files were changed", target.path)
+		}
+		switch {
+		case info.Mode().IsRegular():
+			content, readErr := os.ReadFile(path)
+			if readErr != nil || digest(content) != target.state.digest {
+				return fmt.Errorf("target %q changed after the preview; no project files were changed", target.path)
+			}
+		case info.Mode()&os.ModeSymlink != 0:
+			linkTarget, readErr := os.Readlink(path)
+			if readErr != nil || linkTarget != target.state.linkTarget {
+				return fmt.Errorf("target %q changed after the preview; no project files were changed", target.path)
+			}
+		}
 	}
 	return nil
+}
+
+func removeEmptyDirectories(directories []string) {
+	for i := len(directories) - 1; i >= 0; i-- {
+		_ = os.Remove(directories[i])
+	}
 }
 
 type managedJSONFile struct {
@@ -493,14 +647,73 @@ func validateManagedParentDirectories(root, relativePath string) error {
 }
 
 func validateManagedUpdate(update ManagedFileUpdate) error {
-	clean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(update.Path)))
-	if clean != update.Path || strings.HasPrefix(clean, "../") || filepath.IsAbs(update.Path) || update.Path == "." {
+	if !safeRelativePath(update.Path) {
 		return fmt.Errorf("unsafe managed update path %q", update.Path)
+	}
+	if update.Path == manifestRelativePath || update.Path == filepath.ToSlash(filepath.Join(filepath.Dir(filepath.FromSlash(manifestRelativePath)), manifestLockName)) {
+		return fmt.Errorf("managed update %q targets Orbit's own metadata", update.Path)
+	}
+	if update.ExpectedAbsent && update.ExpectedDigest != "" {
+		return fmt.Errorf("managed update %q cannot expect both an absent and an existing target", update.Path)
 	}
 	if update.ResourceID == "" || update.Source == "" || len(update.Content) == 0 {
 		return fmt.Errorf("managed update %q requires a resource ID, source, and content", update.Path)
 	}
 	return nil
+}
+
+func createManagedFile(path string, content []byte) error {
+	temp, err := os.CreateTemp(filepath.Dir(path), ".orbit-managed-*.tmp")
+	if err != nil {
+		return err
+	}
+	tempPath := temp.Name()
+	defer os.Remove(tempPath)
+	if err := temp.Chmod(0o644); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if _, err := temp.Write(content); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if err := temp.Sync(); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		return err
+	}
+	if err := os.Link(tempPath, path); err != nil {
+		return err
+	}
+	return nil
+}
+
+func writeManifestExclusive(path string, manifest Manifest) error {
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	temp, err := os.CreateTemp(filepath.Dir(path), ".manifest-*.tmp")
+	if err != nil {
+		return err
+	}
+	tempPath := temp.Name()
+	defer os.Remove(tempPath)
+	if _, err := temp.Write(data); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if err := temp.Sync(); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		return err
+	}
+	return os.Link(tempPath, path)
 }
 
 func writeManagedFile(path string, content []byte) error {
