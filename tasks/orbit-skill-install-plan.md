@@ -1,7 +1,7 @@
 # Plan de implementación: instalación de skills de Orbit por proyecto
 
 - especificación: [instalar la skill de Orbit en un proyecto](../docs/specs/orbit-project-skill-install.md)
-- estado: T-2.1 implementada y verificada localmente; pendiente revisión de PR
+- estado: T-2.1 integrada en main mediante PR #9; T-2.2 en progreso
 - lista de tareas: [orbit-skill-install-todo.md](orbit-skill-install-todo.md)
 - alcance: T-2, instalar la skill de entrada en proyectos con Codex, Claude Code y/o Antigravity
 - separación: este plan no reemplaza [el plan de Atomic Memory](plan.md) ni su lista de tareas.
@@ -68,7 +68,7 @@ La planificación inspecciona el manifiesto, los archivos destino y las carpetas
 
 - [x] Los planes y escrituras conservan recursos existentes y las pruebas del paquete pasan.
 - [x] Revisar el manejo de manifiesto ausente y el comportamiento cuando la escritura del manifiesto falla.
-- [ ] Aceptar la abstracción en revisión antes de continuar a T-2.2; debe reutilizarse sin cambiar el comportamiento de `orbit init` ni de la configuración MCP actual.
+- [x] Aceptar la abstracción en revisión antes de continuar a T-2.2; integrada en `main` mediante PR #9 sin cambiar el comportamiento de `orbit init` ni de la configuración MCP actual.
 
 ### T-2.2 — Fuente empaquetada y resolución de destinos por agente
 

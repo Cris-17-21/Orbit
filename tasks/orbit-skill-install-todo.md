@@ -8,16 +8,18 @@ Referencia: [especificación](../docs/specs/orbit-project-skill-install.md) · [
 - [x] **Aceptación:** La aplicación exige que el estado coincida con el plan; valida la raíz, rutas y symlinks; escribe recursos y manifiesto con recuperación ante error.
 - [x] **Aceptación:** Puede crear un manifiesto si no existe y extender uno existente sin perder recursos de `orbit init` o Atomic Memory.
 - [x] **Verificar:** pruebas del paquete `internal/initmemory` para estados, manifiestos, rutas inseguras, conflictos, cambios entre plan y aplicación, rollback y preservación byte por byte.
-- [ ] **Dependencias:** especificación y plan aceptados.
-- [ ] **Archivos probables:** `internal/initmemory/managed.go`, `internal/initmemory/managed_test.go` (y hasta tres adicionales si la separación lo requiere).
-- [ ] **PR:** servicio genérico y pruebas; sin nuevo comando de usuario.
+- [x] **Dependencias:** especificación y plan aceptados.
+- [x] **Archivos probables:** `internal/initmemory/managed.go`, `internal/initmemory/managed_test.go`.
+- [x] **PR:** servicio genérico y pruebas; PR #9 integrado en `main`.
 
 ## Checkpoint T-2.1
 
 - [x] Revisar que el manifiesto se pueda crear y extender sin cambiar las garantías de `orbit init` ni de configuración MCP.
-- [ ] Revisar y aceptar la interfaz reutilizable antes de añadir adaptadores.
+- [x] Revisar y aceptar la interfaz reutilizable antes de añadir adaptadores; aceptación registrada al integrar el PR #9.
 
 ## T-2.2 — Fuente empaquetada y destinos por agente
+
+Estado actual: implementación y pruebas locales en curso; pendiente revisión del checkpoint de compatibilidad de hosts.
 
 - [ ] **Aceptación:** El CLI puede leer del binario una copia byte por byte de `skills/orbit/SKILL.md` sin red ni fuente duplicada.
 - [ ] **Aceptación:** Codex/Antigravity comparten y deduplican `.agents/skills/orbit/SKILL.md`; Claude Code usa `.claude/skills/orbit/SKILL.md`.
