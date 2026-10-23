@@ -1,25 +1,25 @@
-# Business rules
+# Reglas de negocio
 
-### BR-001: Invitation conversion definition
+### BR-001: Definición de conversión de invitaciones
 
 - type: business-rule
-- scope: workspace invitations and activation reporting
+- scope: invitaciones de espacios de trabajo e informes de activación
 - status: proposed
 - created: 2026-10-22
 - updated: 2026-10-22
-- source: `../specs/invitation-conversion/spec.md` (draft example)
-- owner: product owner (example role)
+- source: ../specs/invitation-conversion/spec.md (borrador ilustrativo)
+- owner: responsable de producto (rol de ejemplo)
 
-An invitation counts as converted only after the invitee accepts it and completes account registration. Sending or opening an invitation does not count as conversion.
+Una invitación cuenta como convertida solo cuando la persona invitada la acepta y completa el registro de cuenta. Enviar o abrir una invitación no cuenta como conversión.
 
-### BR-002: Invitation eligibility
+### BR-002: Elegibilidad para invitar
 
 - type: business-rule
-- scope: workspace invitations
+- scope: invitaciones de espacios de trabajo
 - status: proposed
 - created: 2026-10-22
 - updated: 2026-10-22
-- source: `../specs/invitation-conversion/spec.md` (draft example)
-- owner: product owner (example role)
+- source: ../specs/invitation-conversion/spec.md (borrador ilustrativo)
+- owner: responsable de producto (rol de ejemplo)
 
-Only a workspace administrator may send an invitation. The task owner must decide whether invitations expire and how duplicate or already-registered email addresses are handled before this rule can be accepted.
+Solo una persona administradora del espacio puede enviar una invitación. La persona responsable de la tarea debe decidir si las invitaciones vencen y cómo se manejan correos duplicados o ya registrados antes de aceptar esta regla.

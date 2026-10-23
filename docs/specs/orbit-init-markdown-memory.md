@@ -1,120 +1,120 @@
-# Specification: Initialize project Markdown memory with `orbit init`
+# Especificación: inicializar memoria Markdown del proyecto con orbit init
 
-- status: accepted
-- task owner: Cris (Orbit task owner)
-- created: 2026-10-23
-- accepted by: Cris (Orbit task owner)
-- accepted at: 2026-10-23
+- estado: aceptada
+- responsable de la tarea: Cris (responsable de Orbit)
+- creada: 2026-10-23
+- aceptada por: Cris (responsable de Orbit)
+- aceptada el: 2026-10-23
 
-## Need and outcome
+## Necesidad y resultado
 
-Teams should be able to start Orbit's SDD workflow with shared project memory even when they do not use Atomic Memory. Running `orbit init` should create the project's Markdown memory structure with clear, reviewable starter files and no invented business rules.
+Los equipos deben poder comenzar el flujo SDD de Orbit con memoria compartida del proyecto aunque no usen Atomic Memory. Al ejecutar orbit init se crea una estructura de memoria Markdown con plantillas claras y revisables, sin inventar reglas de negocio.
 
-## Scope
+## Alcance
 
-### Included
+### Incluye
 
-- Initialize the three category files in the project-root `project-context/` directory, following Orbit's memory contract.
-- Make the operation safe when files or directories already exist.
-- Explain which files were created, already present, or need manual conflict resolution.
+- Inicializar tres archivos de categoría dentro de project-context/ en la raíz del proyecto, siguiendo el contrato de memoria.
+- Hacer la operación segura si ya existen archivos o directorios.
+- Informar qué archivos se crearon, ya existían o necesitan resolución manual de conflicto.
 
-### Excluded
+### Excluye
 
-- Connecting or configuring Atomic Memory, MCP, or agent-specific integrations.
-- Generating specifications, task plans, or business rules for the user's product.
-- Deciding the final CLI distribution, all flags, or the full interactive setup.
+- Conectar o configurar Atomic Memory, MCP o integraciones específicas de agentes.
+- Generar especificaciones, planes de tareas o reglas de negocio del producto de la persona.
+- Decidir la distribución final del CLI, todas sus opciones o el flujo completo de instalación interactiva.
 
-## Context and business rules
+## Contexto y reglas de negocio
 
-| Reference | Status | Scope | Relevance to this task |
+| Referencia | Estado | Alcance | Relevancia |
 | --- | --- | --- | --- |
-| `docs/memory-contract.md` | proposed design; accepted as the current working direction for this task | Orbit project memory | Markdown is the baseline; the initial layout contains `business-rules.md`, `technical-decisions.md`, and `project-context.md`. A current rule needs an owner and approval evidence. |
-| `docs/install-ownership.md` | proposed design; accepted as the current working direction for this task | Orbit-managed project files | Orbit must not silently overwrite user-owned files; conflicts need a clear and safe resolution. |
-| `docs/product-spec.md` | proposed product design; task owner accepted the Markdown-first direction in conversation | CLI and project memory | `orbit init` initializes a project workflow and Markdown memory without requiring Atomic Memory. |
+| docs/memory-contract.md | diseño propuesto; dirección de trabajo aceptada para esta tarea | Memoria del proyecto Orbit | Markdown es la base; la estructura inicial contiene business-rules.md, technical-decisions.md y project-context.md. Una regla vigente necesita responsable y evidencia de aprobación. |
+| docs/install-ownership.md | diseño propuesto; dirección de trabajo aceptada para esta tarea | Archivos de proyecto administrados por Orbit | Orbit no sobrescribe archivos ajenos en silencio; informa conflictos y ofrece una resolución segura. |
+| docs/product-spec.md | diseño de producto propuesto; responsable aceptó en conversación el enfoque Markdown primero | CLI y memoria | orbit init inicializa flujo y memoria Markdown sin exigir Atomic Memory. |
 
-This feature creates structure only. It must not create records marked `current`, invent domain rules, or treat example-project content as a real team's policy.
+Esta función crea solo estructura. No debe crear registros current, inventar reglas de dominio ni tratar el contenido del ejemplo como política real del equipo.
 
-## Assumptions and decisions
+## Supuestos y decisiones
 
-### Confirmed
+### Confirmados
 
-- Markdown files committed in the project are the baseline shared memory; Atomic Memory remains optional.
-- The memory record format distinguishes `proposed`, `current`, and `superseded`; an item is not current without responsible-owner approval evidence.
-- Orbit must preserve files it does not own and report conflicts instead of silently replacing them.
-- For its first version, `orbit init` requires a Git repository. When invoked from a nested directory, it operates at the repository root.
+- Los archivos Markdown versionados con el proyecto son la memoria compartida base; Atomic Memory es opcional.
+- Los registros distinguen proposed, current y superseded. Un elemento solo pasa a current con evidencia de aprobación de la persona responsable.
+- Orbit preserva archivos ajenos e informa conflictos en vez de sobrescribirlos en silencio.
+- La primera versión de orbit init requiere un repositorio Git. Si se ejecuta dentro de un subdirectorio, actúa en la raíz del repositorio.
 
-### Assumptions to verify
+### Supuestos por verificar
 
-- `orbit init` creates `project-context/business-rules.md`, `project-context/technical-decisions.md`, and `project-context/project-context.md` at the repository root, matching the current memory-contract layout.
-- New files contain only concise headings and instructions linking to Orbit's record format; no fictional or pre-approved rules are seeded.
-- On an interactive terminal, the command presents a preview and asks before creating files. `--yes` explicitly confirms the same plan for non-interactive use.
-- Orbit records files it creates in `.orbit/manifest.json` with manifest schema version 1 and a digest for each created file. A valid existing Orbit manifest may be updated; an unsupported or invalid manifest stops initialization before writes.
+- orbit init crea project-context/business-rules.md, project-context/technical-decisions.md y project-context/project-context.md en la raíz, de acuerdo con el contrato actual.
+- Los archivos nuevos contienen solo encabezados breves e instrucciones con enlace al formato de registro; no agregan reglas ficticias ni preaprobadas.
+- En una terminal interactiva, el comando presenta una vista previa y pregunta antes de crear archivos. --yes confirma explícitamente el mismo plan en un entorno no interactivo.
+- Orbit registra los archivos que crea en .orbit/manifest.json, esquema 1, con hash de cada archivo. Un manifiesto válido puede actualizarse; uno inválido o de versión no compatible detiene el proceso antes de escribir.
 
-### Implementation choices for this increment
+### Decisiones de implementación de este incremento
 
-- Use the stable Bubble Tea v1 API at `v1.3.10` for the interactive confirmation. Use `--yes` only as an explicit non-interactive confirmation.
-- Set the development module baseline to Go 1.24, which is required by the selected Bubble Tea release. The published product's minimum Go version remains open until the release matrix is chosen.
-- Store the project manifest at `.orbit/manifest.json` with schema version 1. Record only the project files this command creates, using their project-relative paths and SHA-256 digests.
+- Usar la API estable Bubble Tea v1.3.10 para la confirmación interactiva. --yes funciona como confirmación explícita no interactiva.
+- Fijar Go 1.24 como base del módulo de desarrollo, requerido por esa versión de Bubble Tea. La versión mínima del producto publicado queda abierta hasta definir la matriz de versiones.
+- Guardar el manifiesto en .orbit/manifest.json con esquema 1. Registrar solo los archivos creados por este comando, con rutas relativas al proyecto y hashes SHA-256.
+- La interfaz y las plantillas generadas se presentan en español; se conservan los nombres técnicos de archivos y opciones del CLI.
 
-## User scenarios
+## Escenarios de usuario
 
-### Scenario: Start Markdown memory in a project without Atomic Memory
+### Iniciar memoria Markdown sin Atomic Memory
 
-- Given a Git project with no Orbit memory files
-- When the task owner runs `orbit init` and accepts the displayed file plan
-- Then Orbit creates the three category files and reports their paths
+- Dado un proyecto Git sin archivos de memoria de Orbit
+- Cuando la persona responsable ejecuta orbit init y acepta el plan de archivos
+- Entonces Orbit crea los tres archivos de categoría e informa sus rutas
 
-### Scenario: Preserve existing project content
+### Preservar contenido existente
 
-- Given one or more target files already exist and are not recorded as Orbit-owned
-- When the task owner runs `orbit init`
-- Then Orbit preserves their content and reports each conflict for manual review
+- Dado que ya existe uno o más destinos no registrados como administrados por Orbit
+- Cuando la persona ejecuta orbit init
+- Entonces Orbit conserva el contenido y señala cada conflicto para revisión manual
 
-### Scenario: Repeat initialization safely
+### Repetir la inicialización de forma segura
 
-- Given the memory structure was initialized previously
-- When the task owner runs `orbit init` again
-- Then Orbit does not duplicate content or replace user edits and reports the existing files
+- Dado que la estructura de memoria ya se inicializó
+- Cuando la persona ejecuta orbit init de nuevo
+- Entonces Orbit no duplica contenido ni reemplaza ediciones y reporta los archivos existentes
 
-## Acceptance criteria
+## Criterios de aceptación
 
-- [ ] **AC-1:** In an eligible Git project with no target directory, `orbit init` previews the three target paths and creates them only after confirmation.
-- [ ] **AC-2:** Each generated file identifies its category and links to the record format; it contains no example business rules or records marked `current`.
-- [ ] **AC-3:** Existing files that Orbit does not own remain byte-for-byte unchanged, and the command reports the path and conflict clearly.
-- [ ] **AC-4:** Re-running initialization does not duplicate starter content or overwrite edits made after the first run.
-- [ ] **AC-5:** The generated Markdown structure is usable without Atomic Memory or any external service.
-- [ ] **AC-6:** The completion summary lists created, already-present, and conflicting paths separately and gives a next step for conflicts.
-- [ ] **AC-7:** The manifest records each file created by Orbit with a stable resource ID and SHA-256 digest; a later run recognizes unchanged files and reports edited files without overwriting them.
+- [ ] **AC-1:** En un proyecto Git válido sin directorio de destino, orbit init muestra las tres rutas y solo las crea tras la confirmación.
+- [ ] **AC-2:** Cada archivo generado identifica su categoría y enlaza al formato de registro; no contiene reglas ficticias ni registros current.
+- [ ] **AC-3:** Los archivos existentes que Orbit no administra quedan idénticos byte por byte y el comando informa ruta y conflicto claramente.
+- [ ] **AC-4:** Repetir la inicialización no duplica plantillas ni sobrescribe ediciones posteriores.
+- [ ] **AC-5:** La estructura Markdown funciona sin Atomic Memory ni servicios externos.
+- [ ] **AC-6:** El resumen separa rutas creadas, existentes y en conflicto, y recomienda qué hacer ante conflictos.
+- [ ] **AC-7:** El manifiesto registra cada archivo creado con ID de recurso estable y hash SHA-256; las ejecuciones posteriores reconocen archivos intactos y avisan de archivos editados sin sobrescribirlos.
+- [ ] **AC-8:** Los mensajes, confirmación interactiva y plantillas generadas están en español. La confirmación acepta s y mantiene y por compatibilidad.
 
-## Dependencies and risks
+## Dependencias y riesgos
 
-- The implementation depends on the CLI command and safe ownership behavior described in `docs/install-ownership.md`.
-- Orbit must distinguish files it created from pre-existing files so later initialization and uninstall do not claim user-owned content.
-- A project-root path may conflict with an existing `project-context/` directory. The command should inspect and report this before writing.
+- La implementación depende del comando CLI y las reglas de propiedad segura descritas en docs/install-ownership.md.
+- Orbit debe distinguir archivos creados por sí mismo de los que ya existían para que una inicialización o desinstalación posterior no reclame contenido ajeno.
+- La ruta project-context/ puede chocar con una carpeta existente; el comando debe inspeccionarla e informar antes de escribir.
 
-## Open questions
+## Preguntas abiertas
 
-- The product's minimum supported Go version remains open. For this development increment, set `go.mod` to Go 1.24, the minimum declared by the selected Bubble Tea v1.3.10 release; revisit the product support policy before publishing binaries.
+- La versión mínima de Go para el producto sigue abierta. En este incremento se usa Go 1.24, mínimo declarado por Bubble Tea v1.3.10; revisar la política de soporte antes de publicar binarios.
 
-## Validation evidence
+## Evidencia de validación
 
-| Acceptance criterion | Check or evidence | Result |
+| Criterio | Comprobación o evidencia | Resultado |
 | --- | --- | --- |
-| AC-1, AC-2, AC-5, AC-6 | CLI run in a temporary Git project; inspect created paths, contents, and summary | pending implementation |
-| AC-3, AC-4, AC-7 | CLI tests with pre-existing files, post-init edits, and a missing managed file; compare file contents and manifest | pending implementation |
+| AC-1, AC-2, AC-5, AC-6, AC-8 | Ejecutar el CLI en un proyecto Git temporal; revisar rutas, contenidos, resumen e idioma | Aprobado en este incremento |
+| AC-3, AC-4, AC-7 | Pruebas con archivos preexistentes, ediciones posteriores y archivo administrado ausente; comparar contenido y manifiesto | Aprobado en este incremento |
 
-## Proposed task and PR boundaries
+## Límite propuesto de tarea y PR
 
-| Task | Outcome | Criteria covered | Dependencies | PR boundary |
+| Tarea | Resultado | Criterios cubiertos | Dependencias | Límite del PR |
 | --- | --- | --- | --- | --- |
-| T-1 | Add safe Markdown-memory initialization to `orbit init` | AC-1–AC-6 | CLI foundation and ownership tracking | One PR for the command's preview, safe writes, repeat behavior, and focused CLI checks |
+| T-1 | Inicializar memoria Markdown de forma segura mediante orbit init | AC-1 a AC-8 | Base del CLI y seguimiento de propiedad | Un PR para vista previa, escrituras seguras, repetición, español y verificaciones enfocadas |
 
-## Acceptance
+## Aceptación
 
-The task owner accepts this specification and authorizes implementation within its scope:
+La persona responsable acepta esta especificación y autoriza la implementación dentro de su alcance:
 
-- accepted by: Cris (Orbit task owner)
-- accepted at: 2026-10-23
-- notes or requested changes: task owner accepted the Git repository requirement; remaining Go support policy is not a blocker for this increment
-
-Implementation begins only after the task owner records acceptance. A material change to scope, business rules, or acceptance criteria returns to the owner for review.
+- aceptada por: Cris (responsable de Orbit)
+- aceptada el: 2026-10-23
+- notas: la persona responsable aceptó que el repositorio Git sea un requisito; la política de soporte de Go no bloquea este incremento

@@ -1,72 +1,72 @@
-# Invitation conversion metric (draft example)
+# Métrica de conversión de invitaciones (borrador de ejemplo)
 
-- status: draft
-- owner: task owner (to be assigned)
-- created: 2026-10-22
-- related business rules: `../../project-context/business-rules.md` (proposed BR-001 and BR-002)
-- related technical decision: `../../project-context/technical-decisions.md` (proposed ADR-001)
+- estado: borrador
+- responsable: responsable de la tarea (por asignar)
+- creada: 2026-10-22
+- reglas de negocio relacionadas: ../../project-context/business-rules.md (BR-001 y BR-002 propuestos)
+- decisión técnica relacionada: ../../project-context/technical-decisions.md (ADR-001 propuesto)
 
-This is a worked example, not an accepted product specification. Resolve the open questions and obtain acceptance from the task owner before implementation.
+Este es un ejemplo trabajado, no una especificación de producto aceptada. Resolver las preguntas abiertas y obtener aceptación de la persona responsable antes de implementar.
 
-## Need
+## Necesidad
 
-Workspace owners need to understand how many invitations lead to activated accounts so they can assess workspace onboarding.
+Las personas responsables de un espacio quieren saber cuántas invitaciones producen cuentas activadas para evaluar la incorporación de sus miembros.
 
-## Goal
+## Objetivo
 
-Define and report the invitation conversion rate for a selected workspace and time period.
+Definir y mostrar la tasa de conversión de invitaciones para un espacio y periodo seleccionados.
 
-## Scope
+## Alcance
 
-- Define which invitations enter the denominator.
-- Define which invitees count as converted.
-- Report invitation and conversion counts with a rate for a selected period.
-- Preserve workspace identity so one customer's events cannot be attributed to another workspace.
+- Definir qué invitaciones forman el denominador.
+- Definir qué personas invitadas cuentan como convertidas.
+- Mostrar cantidad de invitaciones, conversiones y tasa para un periodo seleccionado.
+- Conservar la identidad del espacio para no atribuir eventos de un cliente a otro.
 
-## Out of scope
+## Fuera del alcance
 
-- Choosing a BI vendor or warehouse.
-- Changing the invitation email or registration experience.
-- Defining billing, retention, or broader product activation metrics.
+- Elegir proveedor de BI o almacén de datos.
+- Cambiar la experiencia de correo o registro.
+- Definir facturación, retención u otras métricas de activación del producto.
 
-## Proposed business rules
+## Reglas de negocio propuestas
 
-These rules are proposals linked to the project memory files; neither is approved yet:
+Estas reglas son propuestas enlazadas a los archivos de memoria del proyecto; ninguna está aprobada todavía:
 
-- BR-001: an invitation converts after acceptance and completed account registration.
-- BR-002: only workspace administrators may send invitations.
+- BR-001: una invitación se convierte después de aceptarse y completarse el registro.
+- BR-002: solo las personas administradoras de un espacio pueden enviar invitaciones.
 
-## Metric definition (proposal)
+## Definición de métrica (propuesta)
 
-- **Denominator:** distinct valid invitations sent during the selected period.
-- **Numerator:** invitations in that denominator whose invitee accepted and completed account registration by the reporting cutoff.
-- **Conversion rate:** numerator divided by denominator, expressed as a percentage.
-- Exclude test, cancelled, and invalid invitations if the product can identify them. The owner must confirm the exclusion rules.
-- An empty denominator is reported as “no data,” not as 0%.
+- **Denominador:** invitaciones válidas y distintas enviadas durante el periodo seleccionado.
+- **Numerador:** invitaciones del denominador cuya persona invitada aceptó y completó el registro antes del corte del informe.
+- **Tasa de conversión:** numerador dividido entre denominador, expresado como porcentaje.
+- Excluir invitaciones de prueba, canceladas o inválidas si el producto puede identificarlas. La persona responsable confirma las exclusiones.
+- Si el denominador está vacío, mostrar “sin datos” en vez de 0 %.
 
-The reporting window, treatment of late conversions, resend behavior, and exact exclusion rules are unresolved and must be confirmed before acceptance.
+La ventana de informe, conversiones tardías, reenvíos y exclusiones exactas siguen sin resolver y se deben acordar antes de aceptar la especificación.
 
-## Acceptance criteria
+## Criterios de aceptación
 
-1. Given a workspace and reporting period, the report shows the denominator count, numerator count, and conversion rate using the accepted metric definition.
-2. An invitation contributes no more than once to either count, including when it is resent.
-3. An invitation contributes to the numerator only after both acceptance and completed registration.
-4. An invitation from another workspace never appears in the selected workspace's counts.
-5. When the denominator is empty, the report shows the agreed no-data state and does not display a misleading numeric rate.
-6. Given identical source data, workspace, date range, and accepted cutoff, repeated report runs return the same numerator, denominator, and rate.
+1. Para un espacio y periodo, el informe muestra el denominador, numerador y tasa según la definición aceptada.
+2. Una invitación cuenta como máximo una vez en cada cantidad, incluso si se reenvía.
+3. Una invitación cuenta en el numerador solo después de aceptarse y completarse el registro.
+4. Las invitaciones de otros espacios nunca aparecen en las cantidades del espacio seleccionado.
+5. Si el denominador está vacío, el informe muestra el estado sin datos acordado y no presenta una tasa numérica engañosa.
+6. Con los mismos datos, espacio, rango de fechas y corte aceptado, ejecuciones repetidas producen el mismo numerador, denominador y tasa.
 
-## Open questions for the task owner
+## Preguntas abiertas para la persona responsable
 
-- What exact reporting period and timezone should the metric use?
-- Can an invitee accept after the selected period and still count as a conversion? What cutoff applies?
-- Does resending create a new invitation or update the existing invitation?
-- Which invitation statuses are excluded, and can the system identify test invitations?
-- What does “completed account registration” mean in this product's existing flow?
-- Which dashboard or report surface should display the metric?
-- What data source, warehouse model, and refresh latency are required?
+- ¿Qué periodo y zona horaria debe usar la métrica?
+- ¿Una aceptación posterior al periodo puede contar como conversión? ¿Qué corte corresponde?
+- ¿Reenviar crea una invitación nueva o actualiza la existente?
+- ¿Qué estados se excluyen y el sistema puede identificar invitaciones de prueba?
+- ¿Qué significa “registro de cuenta completado” en el flujo actual?
+- ¿En qué informe o pantalla del panel debe aparecer la métrica?
+- ¿Qué fuente de datos, modelo de almacén y latencia de actualización se necesitan?
 
-## Validation evidence to attach during implementation
+## Evidencia de validación para adjuntar durante la implementación
 
-- Automated checks covering numerator, denominator, duplicates, workspace isolation, and the no-data state.
-- A query or data-model review showing that the implemented calculation matches the accepted definition.
-- A screenshot or report preview for a representative workspace and period, if a UI is in scope.
+- Comprobaciones automatizadas del numerador, denominador, duplicados, aislamiento de espacios y estado sin datos.
+- Revisión de consulta o modelo que demuestre que el cálculo coincide con la definición aceptada.
+- Captura o vista previa del informe para un espacio y periodo representativos, si incluye UI.

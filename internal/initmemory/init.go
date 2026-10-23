@@ -11,8 +11,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
+
+	"github.com/Cris-17-21/Orbit/internal/atomicmemory"
 )
 
 const (
@@ -79,6 +82,7 @@ type resourceDefinition struct {
 	path     string
 	category string
 	text     string
+	content  []byte
 }
 
 func (p Plan) CreateCount() int {
@@ -183,8 +187,23 @@ func BuildPlan(root string) (Plan, error) {
 		resources[resource.Target] = resource
 	}
 
-	for _, resource := range memoryResources {
-		entry := Entry{Path: resource.path, content: starterContent(resource.category, resource.text)}
+	resourcesToPlan := append([]resourceDefinition(nil), memoryResources...)
+	atomicMemoryConfig, err := atomicmemory.DefaultConfig().Marshal()
+	if err != nil {
+		return Plan{}, fmt.Errorf("build default Atomic Memory config: %w", err)
+	}
+	resourcesToPlan = append(resourcesToPlan, resourceDefinition{
+		id:      "project-atomic-memory-config",
+		path:    ".orbit/atomic-memory.json",
+		content: atomicMemoryConfig,
+	})
+
+	for _, resource := range resourcesToPlan {
+		content := resource.content
+		if content == nil {
+			content = starterContent(resource.category, resource.text)
+		}
+		entry := Entry{Path: resource.path, content: content}
 		fullPath := filepath.Join(absoluteRoot, filepath.FromSlash(resource.path))
 		if !isWithinRoot(absoluteRoot, fullPath) {
 			return Plan{}, fmt.Errorf("target %q escapes the project root", resource.path)
@@ -412,7 +431,14 @@ func parseManifest(data []byte, root string) (Manifest, error) {
 	if manifest.SchemaVersion != ManifestSchemaVersion {
 		return Manifest{}, fmt.Errorf("unsupported Orbit manifest schema version %d; expected %d; no project files were changed", manifest.SchemaVersion, ManifestSchemaVersion)
 	}
-	if manifest.Scope != "project" || filepath.Clean(manifest.ProjectRoot) != root {
+	manifestRoot := filepath.Clean(manifest.ProjectRoot)
+	projectRootMatches := manifestRoot == root
+	if runtime.GOOS == "windows" {
+		manifestCanonical, manifestErr := filepath.EvalSymlinks(manifestRoot)
+		rootCanonical, rootErr := filepath.EvalSymlinks(root)
+		projectRootMatches = manifestErr == nil && rootErr == nil && strings.EqualFold(filepath.Clean(manifestCanonical), filepath.Clean(rootCanonical))
+	}
+	if manifest.Scope != "project" || !projectRootMatches {
 		return Manifest{}, errors.New("Orbit manifest belongs to a different project or scope; no project files were changed")
 	}
 	if manifest.Resources == nil {
@@ -537,6 +563,9 @@ func digest(data []byte) string {
 }
 
 func resourceIDForPath(path string) string {
+	if path == ".orbit/atomic-memory.json" {
+		return "project-atomic-memory-config"
+	}
 	for _, resource := range memoryResources {
 		if resource.path == path {
 			return resource.id

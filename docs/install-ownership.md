@@ -1,112 +1,112 @@
-# Orbit installation ownership and conflict handling
+# Propiedad de instalación y gestión de conflictos en Orbit
 
-- status: design proposal
-- updated: 2026-10-23
+- estado: propuesta de diseño
+- actualizado: 2026-10-23
 
-This document defines how the Orbit CLI should track the files and configuration entries it manages. The goal is to make project-local and user-wide installs repeatable while preserving existing agent customizations and skills.
+Este documento establece cómo el CLI de Orbit registra los archivos y entradas de configuración que administra. El objetivo es hacer repetibles las instalaciones locales al proyecto o personales, preservando las personalizaciones y skills existentes.
 
-## Ownership rules
+## Reglas de propiedad
 
-1. Orbit owns only files or configuration entries recorded in its install manifest.
-2. Orbit never claims an entire agent configuration file when it only needs to add one server, skill reference, or managed section.
-3. Orbit places its resources under an Orbit-specific namespace wherever the agent supports one.
-4. Existing user skills, files, settings, and unrelated configuration are preserved.
-5. A conflict is shown to the user; it is never resolved by silently overwriting user content.
-6. Install, update, and uninstall operate on a planned set of changes. The CLI shows the plan before applying it in interactive mode and supports a no-write preview in automation.
+1. Orbit solo es responsable de archivos o entradas de configuración incluidos en su manifiesto.
+2. Orbit nunca reclama un archivo de configuración completo si solo necesita agregar un servidor, referencia de skill o sección administrada.
+3. Orbit ubica sus recursos en un namespace propio siempre que el agente lo permita.
+4. Se preservan las skills, archivos, ajustes y configuración ajenos.
+5. Los conflictos se muestran; nunca se resuelven sobrescribiendo contenido en silencio.
+6. Instalar, actualizar y desinstalar operan sobre un plan de cambios. El CLI lo muestra antes de aplicarlo en modo interactivo y ofrece una vista previa sin escrituras para automatización.
 
-## Install manifest
+## Manifiesto de instalación
 
-Each installation scope has one Orbit-owned manifest. A project-local installation stores it in the project; a user-wide installation stores it in Orbit's user configuration directory.
+Cada alcance de instalación tiene un manifiesto de Orbit. Una instalación local al proyecto lo guarda dentro del proyecto; una instalación personal lo guarda en el directorio de configuración de Orbit del usuario.
 
-The manifest records, at minimum:
+El manifiesto incluye como mínimo:
 
-| Field | Purpose |
+| Campo | Propósito |
 | --- | --- |
-| `schema_version` | Version of the manifest format so the CLI can migrate it safely |
-| `orbit_version` | Exact Orbit release installed |
-| `scope` | `project` or `user` |
-| `project_root` | Canonical project root for a project installation |
-| `installed_at` | Installation timestamp |
-| `resources[]` | Files and configuration entries managed by Orbit |
+| schema_version | Versión del formato para migrarlo con seguridad |
+| orbit_version | Versión exacta de Orbit instalada |
+| scope | project o user |
+| project_root | Raíz canónica en una instalación de proyecto |
+| installed_at | Fecha y hora de instalación |
+| resources[] | Archivos y entradas administrados por Orbit |
 
-Each resource record includes:
+Cada recurso registra:
 
-| Field | Purpose |
+| Campo | Propósito |
 | --- | --- |
-| `resource_id` | Stable Orbit identity, independent of the target path |
-| `agent` | Adapter that owns or references the resource |
-| `kind` | `file`, `config-entry`, or `managed-section` |
-| `target` | Canonical path or structured key/section selector |
-| `source` | Orbit package path and release version used to create it |
-| `installed_digest` | Digest of the exact managed bytes or serialized entry last written |
-| `previous_value` | Prior value or absence marker when Orbit added a config entry |
-| `backup_ref` | Optional recovery copy for a replacement approved by the user |
-| `state` | `managed`, `modified`, `conflict`, or `orphaned` |
+| resource_id | Identidad estable de Orbit, independiente de la ruta |
+| agent | Adaptador propietario o referencia del recurso |
+| kind | file, config-entry o managed-section |
+| target | Ruta canónica o selector estructurado de clave/sección |
+| source | Ruta del paquete de Orbit y versión que lo creó |
+| installed_digest | Hash de los bytes administrados o de la entrada serializada |
+| previous_value | Valor anterior o marca de ausencia al agregar una entrada |
+| backup_ref | Copia opcional de recuperación para un reemplazo aceptado |
+| state | managed, modified, conflict u orphaned |
 
-The manifest must not contain credentials, API keys, or other secrets. If a host requires a credential, use the host's supported credential store or environment reference and record only that the connection is configured.
+El manifiesto no guarda credenciales, claves API ni secretos. Si un host requiere credenciales, se usa su almacén seguro o una referencia a variable de entorno y solo se registra que la conexión está configurada.
 
-## Install flow
+## Flujo de instalación
 
-1. Resolve and validate the requested scope and project root.
-2. Load the selected Orbit release and verify its published digest before installing it.
-3. Detect selected agents and their existing skill/configuration paths without changing them.
-4. Build an install plan listing every new file, config entry, conflict, and skipped optional integration.
-5. Check the plan for path escape, duplicate targets, existing unowned files, and incompatible manifest versions.
-6. Show the plan in the guided interface. In non-interactive mode, print it with `--dry-run`; require explicit flags for conflict choices.
-7. Apply writes through temporary files and atomic replacement where the platform allows it. Preserve unrelated configuration entries and retain a recovery copy before any approved replacement.
-8. Write or update the manifest only after all planned resources have been applied and checked. If a step fails, restore the prior state from the transaction journal and report any incomplete recovery.
+1. Resolver y validar el alcance solicitado y la raíz del proyecto.
+2. Obtener la versión elegida de Orbit y verificar su hash publicado.
+3. Detectar agentes seleccionados y sus rutas actuales de skills/configuración sin modificarlas.
+4. Crear un plan con cada archivo nuevo, entrada, conflicto e integración opcional omitida.
+5. Comprobar escape de rutas, destinos duplicados, archivos existentes sin propietario y versiones de manifiesto incompatibles.
+6. Mostrar el plan en la interfaz. En modo no interactivo, imprimirlo con dry-run y exigir opciones explícitas para resolver conflictos.
+7. Aplicar escrituras mediante archivos temporales y reemplazo atómico cuando la plataforma lo permita. Preservar entradas ajenas y guardar recuperación antes de un reemplazo aceptado.
+8. Escribir o actualizar el manifiesto solo tras aplicar y comprobar los recursos. Ante un fallo, restaurar el estado anterior usando el registro de transacción e informar si la recuperación quedó incompleta.
 
-The default conflict choice is to skip the conflicting target and keep going with non-conflicting resources, while clearly reporting that the integration is partial. The user can choose a distinct Orbit-prefixed name, a different installation scope, or a manual resolution. Orbit does not overwrite the target as a default.
+Por defecto, se omite el destino en conflicto y se continúa con recursos no conflictivos, informando que la integración es parcial. La persona puede elegir otro nombre con prefijo Orbit, un alcance distinto o resolverlo manualmente. Orbit no sobrescribe el destino por defecto.
 
-## Update flow
+## Flujo de actualización
 
-For each manifest resource, compare the current target with the last `installed_digest`:
+Para cada recurso, comparar el destino actual con installed_digest:
 
-- **Unchanged managed resource:** replace it with the selected Orbit release and update the manifest digest.
-- **User-modified managed file or section:** preserve it and report a conflict. Offer a side-by-side candidate, a three-way merge preview when a trustworthy base is available, or skip. Never replace it silently.
-- **Missing resource:** offer to restore it from the selected release.
-- **New resource in the release:** plan it as a new target, applying the normal collision checks.
-- **Resource no longer shipped by Orbit:** mark it `orphaned` and offer removal; do not remove it automatically during update.
+- **Recurso administrado sin cambios:** reemplazarlo con la versión elegida y actualizar el hash.
+- **Archivo o sección modificados por la persona:** preservarlos e informar el conflicto. Ofrecer una versión candidata lado a lado, una vista previa de fusión de tres vías cuando exista una base confiable, o saltar. Nunca reemplazar en silencio.
+- **Recurso ausente:** ofrecer restaurarlo desde la versión elegida.
+- **Recurso nuevo en la versión:** planificarlo como destino nuevo y aplicar controles normales de colisión.
+- **Recurso que Orbit ya no distribuye:** marcarlo orphaned y ofrecer quitarlo; no eliminarlo automáticamente durante la actualización.
 
-Before applying an update, create a recovery point containing the previous Orbit version, manifest, and exact prior contents of resources that will change. Rollback restores that recovery point only for resources whose current content still matches the version installed by the update. If a resource changed after the update, leave it in place and report a manual conflict instead of erasing newer work.
+Antes de actualizar, crear un punto de recuperación con la versión anterior, el manifiesto y el contenido exacto de los recursos que cambiarán. La reversión restaura ese punto solo si el contenido actual sigue coincidiendo con lo instalado por la actualización. Si el recurso cambió después, conservarlo e informar un conflicto manual.
 
-## Uninstall flow
+## Flujo de desinstalación
 
-Uninstall reads only the selected scope's manifest and previews the resources it would remove or restore:
+La desinstalación lee solo el manifiesto del alcance seleccionado y muestra una vista previa:
 
-- Remove an unchanged Orbit-managed file.
-- Remove an Orbit-added config entry only if that exact entry still matches Orbit's installed digest; preserve other keys and comments when the format permits.
-- Restore a previous config value only when the current value still equals Orbit's installed value.
-- Leave user-modified resources in place, mark them for manual cleanup, and show their paths.
-- Never recursively remove a parent folder that contains unowned resources.
+- Quitar archivos administrados sin cambios.
+- Quitar entradas de configuración agregadas por Orbit solo si coinciden con el hash instalado; preservar otras claves y comentarios cuando el formato lo permita.
+- Restaurar un valor de configuración anterior solo si el actual aún coincide con el instalado por Orbit.
+- Dejar recursos modificados por la persona e indicar sus rutas para limpieza manual.
+- Nunca quitar recursivamente una carpeta que contenga recursos ajenos.
 
-After successful cleanup, remove the manifest. If conflicts remain, keep a small manifest/report of unresolved Orbit-owned resources until the user resolves or acknowledges them.
+Tras una limpieza correcta, quitar el manifiesto. Si quedan conflictos, conservar un manifiesto o informe pequeño de recursos pendientes hasta que se resuelvan o reconozcan.
 
-## Editing shared agent configuration
+## Edición de configuración compartida de agentes
 
-Some hosts keep MCP servers or settings in a shared JSON/TOML file. Orbit should prefer the host's supported CLI for adding a uniquely named server entry when that command preserves unrelated settings. Otherwise, the adapter must edit only a namespaced key or managed section and record the exact before/after value in the manifest.
+Algunos hosts guardan servidores MCP o ajustes en archivos JSON/TOML compartidos. Orbit debe preferir el CLI del host para agregar una entrada con nombre único si preserva la configuración ajena. Si no, el adaptador modifica solo una clave namespaced o sección administrada y registra el valor exacto anterior y nuevo.
 
-If an adapter cannot make a narrow, verifiable edit without rewriting unrelated content, it should not write that file automatically. It can generate a patch for the user to apply and mark that integration as manual in `doctor`.
+Si no es posible editar de forma acotada y verificable sin reescribir contenido ajeno, el adaptador no modifica el archivo automáticamente. Puede generar un parche para que la persona lo aplique y marcar la integración como manual en doctor.
 
-## Recovery and audit output
+## Recuperación e informe de auditoría
 
-Every install, update, rollback, and uninstall produces a concise summary of:
+Cada instalación, actualización, reversión y desinstalación resume:
 
-- Orbit version before and after;
-- files and config entries added, changed, restored, skipped, or left conflicted;
-- backup/recovery location;
-- integrations that need a manual step;
-- next command for diagnosis.
+- versiones de Orbit anterior y nueva;
+- archivos y entradas agregados, modificados, restaurados, omitidos o con conflicto;
+- ubicación de respaldos/recuperación;
+- integraciones que necesitan pasos manuales;
+- siguiente comando para diagnosticar.
 
-The CLI should support a read-only `orbit doctor` view of manifest integrity, installed version, missing or modified resources, and agent integration status.
+El CLI debe ofrecer orbit doctor en modo de solo lectura para revisar integridad del manifiesto, versión instalada, recursos ausentes o modificados y estado de integración de agentes.
 
-## Open implementation decisions
+## Decisiones de implementación pendientes
 
-- Exact manifest filename and user configuration directory.
-- Digest algorithm and canonical serialization for structured config entries.
-- How long recovery points are retained and how the user removes them.
-- Whether a release may rename a resource while preserving its stable `resource_id`.
-- Which agent CLIs can safely add/remove scoped entries without editing files directly.
-- How to handle shared configuration files edited concurrently by an agent during an install transaction.
+- Nombre exacto del manifiesto y directorio de configuración del usuario.
+- Algoritmo de hash y serialización canónica de entradas estructuradas.
+- Retención de puntos de recuperación y forma de eliminarlos.
+- Posibilidad de renombrar un recurso entre versiones conservando resource_id.
+- Qué CLI de agentes puede agregar o quitar entradas con alcance de forma segura.
+- Cómo manejar archivos compartidos que un agente modifique durante una transacción de instalación.
 
-Resolve these details in the CLI architecture and adapter specifications before implementing writes to each host's configuration.
+Resolver estos detalles en la arquitectura del CLI y las especificaciones de adaptadores antes de escribir en la configuración de cada host.
