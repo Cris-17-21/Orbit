@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -318,6 +319,158 @@ func TestConfigureCodexPreservesUnownedProjectConfig(t *testing.T) {
 	}
 	if strings.Contains(string(data), `"mode": "personal"`) {
 		t.Fatal("Atomic Memory config was partially updated despite Codex conflict")
+	}
+}
+
+func TestConfigureClaudeMergesProjectMCPConfigAndKeepsOtherServers(t *testing.T) {
+	root := createRepo(t)
+	initializeMemory(t, root)
+	mcpPath := filepath.Join(root, ".mcp.json")
+	before := []byte(`{"$schema":"https://example.test/schema.json","mcpServers":{"other":{"command":"keep-me"}}}`)
+	if err := os.WriteFile(mcpPath, before, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := execute([]string{"memory", "configure", "claude", "--yes"}, root, &stdout, &stderr, false, nil)
+	if code != 0 {
+		t.Fatalf("execute() = %d, stderr: %s", code, stderr.String())
+	}
+	data, err := os.ReadFile(mcpPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config struct {
+		Schema     string `json:"$schema"`
+		MCPServers map[string]struct {
+			Command string            `json:"command"`
+			Args    []string          `json:"args"`
+			Env     map[string]string `json:"env"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(data, &config); err != nil {
+		t.Fatalf("invalid .mcp.json: %v", err)
+	}
+	if config.Schema != "https://example.test/schema.json" {
+		t.Errorf("$schema = %q, want preserved schema", config.Schema)
+	}
+	if got := config.MCPServers["other"].Command; got != "keep-me" {
+		t.Errorf("unrelated server command = %q, want keep-me", got)
+	}
+	server, found := config.MCPServers["atomicmemory"]
+	if !found {
+		t.Fatal("Atomic Memory MCP entry was not installed")
+	}
+	if server.Command != "npx" || strings.Join(server.Args, " ") != "-y --package=@atomicmemory/mcp-server@0.1.6 atomicmemory-mcp" {
+		t.Errorf("unexpected Atomic Memory command: %#v", server)
+	}
+	if server.Env["ATOMICMEMORY_API_KEY"] != "${ATOMICMEMORY_API_KEY}" || server.Env["ATOMICMEMORY_SCOPE_USER"] != "${ATOMICMEMORY_SCOPE_USER}" {
+		t.Errorf("local credential/identity references missing: %#v", server.Env)
+	}
+	for _, forbidden := range []string{"amc_", "user_", "personal@example.com"} {
+		if strings.Contains(string(data), forbidden) {
+			t.Errorf(".mcp.json contains sensitive value %q", forbidden)
+		}
+	}
+	if !strings.Contains(stdout.String(), "aprobar") {
+		t.Errorf("approval requirement was not mentioned: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "no se copiaron") {
+		t.Errorf("credential handling was not reported: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "protocolo de memoria de Orbit se agregará") {
+		t.Errorf("MCP-only scope was not explained: %s", stdout.String())
+	}
+}
+
+func TestConfigureClaudePreservesUnownedAtomicMemoryEntry(t *testing.T) {
+	root := createRepo(t)
+	initializeMemory(t, root)
+	mcpPath := filepath.Join(root, ".mcp.json")
+	want := []byte(`{"mcpServers":{"atomicmemory":{"command":"user-owned"},"other":{"command":"keep-me"}}}`)
+	if err := os.WriteFile(mcpPath, want, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := execute([]string{"memory", "configure", "claude", "--yes"}, root, &stdout, &stderr, false, nil)
+	if code == 0 || !strings.Contains(stderr.String(), "no está administrada por Orbit") {
+		t.Fatalf("execute() = %d, stderr: %s", code, stderr.String())
+	}
+	got, err := os.ReadFile(mcpPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("unowned MCP entry changed: got %s, want %s", got, want)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".orbit", "atomic-memory.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"mode": "personal"`) {
+		t.Fatal("Atomic Memory config was partially updated despite the conflict")
+	}
+}
+
+func TestConfigureClaudeCancellationDoesNotWrite(t *testing.T) {
+	root := createRepo(t)
+	initializeMemory(t, root)
+	var stdout, stderr bytes.Buffer
+	prompt := func(plan initmemory.Plan) (bool, error) {
+		if len(plan.Entries) != 2 {
+			t.Fatalf("confirmation received %d plan entries, want 2", len(plan.Entries))
+		}
+		return false, nil
+	}
+	code := execute([]string{"memory", "configure", "claude"}, root, &stdout, &stderr, true, prompt)
+	if code != 0 || !strings.Contains(stdout.String(), "Cancelado") {
+		t.Fatalf("execute() = %d, stdout %s, stderr %s", code, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(root, ".mcp.json")); !os.IsNotExist(err) {
+		t.Fatalf(".mcp.json was written after cancellation: err = %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".orbit", "atomic-memory.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"mode": "personal"`) {
+		t.Fatal("Atomic Memory config changed after cancellation")
+	}
+}
+
+func TestConfigureClaudeRejectsStalePreviewWithoutPartialWrite(t *testing.T) {
+	root := createRepo(t)
+	initializeMemory(t, root)
+	var stdout, stderr bytes.Buffer
+	confirm := func(plan initmemory.Plan) (bool, error) {
+		if err := os.WriteFile(filepath.Join(root, ".mcp.json"), []byte(`{"mcpServers":{"other":{"command":"new"}}}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return true, nil
+	}
+	code := execute([]string{"memory", "configure", "claude"}, root, &stdout, &stderr, true, confirm)
+	if code == 0 || !strings.Contains(stderr.String(), "after the preview") {
+		t.Fatalf("execute() = %d, stderr: %s", code, stderr.String())
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".orbit", "atomic-memory.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"mode": "personal"`) {
+		t.Fatal("Atomic Memory config changed after stale preview")
+	}
+}
+
+func TestConfigureClaudeHelpShowsUsageOnce(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := execute([]string{"memory", "configure", "claude", "--help"}, t.TempDir(), &stdout, &stderr, false, nil)
+	if code != 0 {
+		t.Fatalf("execute() = %d", code)
+	}
+	if strings.Count(stderr.String(), "Uso: orbit memory configure") != 1 {
+		t.Fatalf("usage was not printed exactly once to stderr: %q", stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("help was duplicated to stdout: %q", stdout.String())
 	}
 }
 
