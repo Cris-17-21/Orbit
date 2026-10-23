@@ -50,6 +50,12 @@ This feature creates structure only. It must not create records marked `current`
 - On an interactive terminal, the command presents a preview and asks before creating files. `--yes` explicitly confirms the same plan for non-interactive use.
 - Orbit records files it creates in `.orbit/manifest.json` with manifest schema version 1 and a digest for each created file. A valid existing Orbit manifest may be updated; an unsupported or invalid manifest stops initialization before writes.
 
+### Implementation choices for this increment
+
+- Use the stable Bubble Tea v1 API at `v1.3.10` for the interactive confirmation. Use `--yes` only as an explicit non-interactive confirmation.
+- Set the development module baseline to Go 1.24, which is required by the selected Bubble Tea release. The published product's minimum Go version remains open until the release matrix is chosen.
+- Store the project manifest at `.orbit/manifest.json` with schema version 1. Record only the project files this command creates, using their project-relative paths and SHA-256 digests.
+
 ## User scenarios
 
 ### Scenario: Start Markdown memory in a project without Atomic Memory
@@ -78,6 +84,7 @@ This feature creates structure only. It must not create records marked `current`
 - [ ] **AC-4:** Re-running initialization does not duplicate starter content or overwrite edits made after the first run.
 - [ ] **AC-5:** The generated Markdown structure is usable without Atomic Memory or any external service.
 - [ ] **AC-6:** The completion summary lists created, already-present, and conflicting paths separately and gives a next step for conflicts.
+- [ ] **AC-7:** The manifest records each file created by Orbit with a stable resource ID and SHA-256 digest; a later run recognizes unchanged files and reports edited files without overwriting them.
 
 ## Dependencies and risks
 
@@ -93,9 +100,8 @@ This feature creates structure only. It must not create records marked `current`
 
 | Acceptance criterion | Check or evidence | Result |
 | --- | --- | --- |
-| AC-1, AC-2 | CLI test in a temporary Git project; inspect created paths and contents | pending implementation |
-| AC-3, AC-4 | CLI tests with pre-existing files and post-init user edits; compare file contents before and after | pending implementation |
-| AC-5, AC-6 | Run without Atomic Memory configured; inspect completion summary | pending implementation |
+| AC-1, AC-2, AC-5, AC-6 | CLI run in a temporary Git project; inspect created paths, contents, and summary | pending implementation |
+| AC-3, AC-4, AC-7 | CLI tests with pre-existing files, post-init edits, and a missing managed file; compare file contents and manifest | pending implementation |
 
 ## Proposed task and PR boundaries
 
