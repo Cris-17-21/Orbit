@@ -28,6 +28,8 @@
   - Dependencias: Tarea 2.
   - Archivos probables: adaptador Codex, dispatcher CLI y pruebas (máximo cinco).
   - Alcance: mediano.
+  - [x] Subcorte 3.1 — comando `orbit memory configure codex`, detección segura de una entrada existente, plan con confirmación, generación de `.codex/config.toml` de proyecto sin credenciales y propiedad en el manifiesto; pruebas automatizadas pasan.
+  - [ ] Subcorte 3.2 — validación manual en Codex autenticado y revisión del comportamiento de las variables locales en otra cuenta.
 
 - [ ] **Tarea 4 — Configuración MCP de Claude Code**
   - Aceptación: agrega el servidor oficial sin reemplazar `.mcp.json` ni configuración ajena; informa aprobación de confianza pendiente.
