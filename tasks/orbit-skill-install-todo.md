@@ -40,7 +40,7 @@ Estado actual: implementado y verificado localmente; pendiente revisión del PR.
 - [x] **Aceptación:** Selección interactiva o por flags, vista previa, confirmación y mensajes de resultado en español.
 - [x] **Aceptación:** `--dry-run` no escribe; modo no interactivo necesita `--yes`; cancelar no escribe.
 - [x] **Aceptación:** Conflictos se conservan sin reemplazos; destinos independientes se pueden instalar y registrar.
-- [x] **Verificar:** pruebas de argumentos, selección, cancelación, plan seco, aplicación y conflicto parcial; `go test ./... -count=1`, `go vet ./...` y `git diff --check`.
+- [x] **Verificar:** pruebas de argumentos, selección, cancelación, plan seco, aplicación, conflicto parcial e integración de `orbit init` antes y después; `go test ./... -count=1`, `go vet ./...` y `git diff --check`.
 - [x] **Dependencias:** T-2.1 y T-2.2 integradas en `main` mediante PR #9 y PR #10.
 - [x] **Archivos probables:** `cmd/orbit/main.go`, `cmd/orbit/main_test.go`.
 - [ ] **PR:** entrega enfocada del comando pendiente de creación/revisión.
@@ -48,5 +48,5 @@ Estado actual: implementado y verificado localmente; pendiente revisión del PR.
 ## Checkpoint final
 
 - [ ] AC-1 a AC-10 de la especificación tienen evidencia.
-- [ ] Los archivos instalados y el manifiesto quedan correctos tanto antes como después de `orbit init`.
+- [x] Los archivos instalados y el manifiesto quedan correctos tanto antes como después de `orbit init`, mediante prueba de comandos en ambos órdenes.
 - [ ] El PR enumera criterios, validación, hosts comprobados y límites de la verificación runtime.

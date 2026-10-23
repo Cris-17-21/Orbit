@@ -95,6 +95,58 @@ func TestSkillInstallYesAppliesSelectedAgentsAndManifest(t *testing.T) {
 	}
 }
 
+func TestSkillInstallAndInitWorkInEitherOrder(t *testing.T) {
+	for _, initFirst := range []bool{true, false} {
+		name := "skill-first"
+		if initFirst {
+			name = "init-first"
+		}
+		t.Run(name, func(t *testing.T) {
+			root := createRepo(t)
+			var stdout, stderr bytes.Buffer
+			run := func(args ...string) {
+				t.Helper()
+				stdout.Reset()
+				stderr.Reset()
+				if code := execute(args, root, &stdout, &stderr, false, nil); code != 0 {
+					t.Fatalf("execute(%v) = %d; stdout=%s stderr=%s", args, code, stdout.String(), stderr.String())
+				}
+			}
+			if initFirst {
+				run("init", "--yes")
+			}
+			run("skill", "install", "--codex", "--yes")
+			if !initFirst {
+				run("init", "--yes")
+			}
+			skillPath := filepath.Join(root, ".agents", "skills", "orbit", "SKILL.md")
+			originalSkill, err := os.ReadFile(skillPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			run("init", "--yes")
+			finalSkill, err := os.ReadFile(skillPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(originalSkill, finalSkill) {
+				t.Fatal("orbit init changed the installed skill")
+			}
+			manifestBytes, err := os.ReadFile(filepath.Join(root, ".orbit", "manifest.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var manifest initmemory.Manifest
+			if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+				t.Fatal(err)
+			}
+			if len(manifest.Resources) != 5 {
+				t.Fatalf("manifest has %d resources, want 5 (four init resources plus skill)", len(manifest.Resources))
+			}
+		})
+	}
+}
+
 func TestSkillInstallConflictPreservesTargetAndInstallsIndependentDestination(t *testing.T) {
 	root := createRepo(t)
 	conflictPath := filepath.Join(root, ".agents", "skills", "orbit", "SKILL.md")
