@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -430,7 +431,14 @@ func parseManifest(data []byte, root string) (Manifest, error) {
 	if manifest.SchemaVersion != ManifestSchemaVersion {
 		return Manifest{}, fmt.Errorf("unsupported Orbit manifest schema version %d; expected %d; no project files were changed", manifest.SchemaVersion, ManifestSchemaVersion)
 	}
-	if manifest.Scope != "project" || filepath.Clean(manifest.ProjectRoot) != root {
+	manifestRoot := filepath.Clean(manifest.ProjectRoot)
+	projectRootMatches := manifestRoot == root
+	if runtime.GOOS == "windows" {
+		manifestCanonical, manifestErr := filepath.EvalSymlinks(manifestRoot)
+		rootCanonical, rootErr := filepath.EvalSymlinks(root)
+		projectRootMatches = manifestErr == nil && rootErr == nil && strings.EqualFold(filepath.Clean(manifestCanonical), filepath.Clean(rootCanonical))
+	}
+	if manifest.Scope != "project" || !projectRootMatches {
 		return Manifest{}, errors.New("Orbit manifest belongs to a different project or scope; no project files were changed")
 	}
 	if manifest.Resources == nil {

@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Cris-17-21/Orbit/internal/atomicmemory"
 	"github.com/Cris-17-21/Orbit/internal/initmemory"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -152,3 +154,171 @@ func TestConfirmationModelDefaultsToNoAndRequiresExplicitChoice(t *testing.T) {
 		t.Fatal("selecting Yes and pressing Enter did not confirm the plan")
 	}
 }
+
+func initializeMemory(t *testing.T, root string) {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	if code := execute([]string{"init", "--yes"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("orbit init failed: %s", stderr.String())
+	}
+}
+
+func TestConfigureCodexUpdatesProjectConfigWithoutDuplicatingExistingServer(t *testing.T) {
+	root := createRepo(t)
+	initializeMemory(t, root)
+	var stdout, stderr bytes.Buffer
+	lister := func() ([]string, error) { return []string{"atomicmemory", "other"}, nil }
+	code := executeWithCodexLister([]string{"memory", "configure", "codex", "--yes"}, root, &stdout, &stderr, false, nil, lister)
+	if code != 0 {
+		t.Fatalf("execute() = %d, stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "no agregará otro") {
+		t.Fatalf("existing server detection was not reported: %s", stdout.String())
+	}
+	if _, err := os.Stat(filepath.Join(root, ".codex", "config.toml")); !os.IsNotExist(err) {
+		t.Fatalf("duplicate project MCP config was written: err = %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".orbit", "atomic-memory.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"mode": "personal"`) || !strings.Contains(string(data), `"backend": "hosted-cloud"`) {
+		t.Fatalf("project config was not enabled: %s", data)
+	}
+}
+
+func TestConfigureCodexPreservesExistingBackendWhenFlagIsOmitted(t *testing.T) {
+	root := createRepo(t)
+	initializeMemory(t, root)
+	config := atomicmemory.Config{SchemaVersion: atomicmemory.ConfigSchemaVersion, Mode: atomicmemory.ModePersonal, Backend: atomicmemory.BackendSelfHosted, APIURL: "https://memory.example.com"}
+	configBytes, err := config.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := initmemory.UpdateManagedFiles(root, []initmemory.ManagedFileUpdate{{
+		Path: ".orbit/atomic-memory.json", ResourceID: "project-atomic-memory-config", Source: "test", Content: configBytes,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	lister := func() ([]string, error) { return []string{"atomicmemory"}, nil }
+	code := executeWithCodexLister([]string{"memory", "configure", "codex", "--yes"}, root, &stdout, &stderr, false, nil, lister)
+	if code != 0 {
+		t.Fatalf("execute() = %d, stderr: %s", code, stderr.String())
+	}
+	updated, err := os.ReadFile(filepath.Join(root, ".orbit", "atomic-memory.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := atomicmemory.ParseConfig(updated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Backend != config.Backend || got.APIURL != config.APIURL {
+		t.Fatalf("backend changed without an explicit flag: %#v", got)
+	}
+}
+
+func TestConfigureCodexAddsProjectConfigWithLocalEnvironmentReferences(t *testing.T) {
+	root := createRepo(t)
+	initializeMemory(t, root)
+	var stdout, stderr bytes.Buffer
+	lister := func() ([]string, error) { return []string{"other"}, nil }
+	code := executeWithCodexLister([]string{"memory", "configure", "codex", "--yes"}, root, &stdout, &stderr, false, nil, lister)
+	if code != 0 {
+		t.Fatalf("execute() = %d, stderr: %s", code, stderr.String())
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".codex", "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"[mcp_servers.atomicmemory]", "@atomicmemory/mcp-server@0.1.6", "ATOMICMEMORY_API_KEY", "ATOMICMEMORY_SCOPE_USER", "env_vars"} {
+		if !strings.Contains(string(data), expected) {
+			t.Errorf("Codex config omits %q: %s", expected, data)
+		}
+	}
+	for _, forbidden := range []string{"private-key", "private-user", "user_"} {
+		if strings.Contains(string(data), forbidden) {
+			t.Errorf("Codex config contains sensitive value %q", forbidden)
+		}
+	}
+	if !strings.Contains(stdout.String(), "confianza") {
+		t.Errorf("did not mention Codex project trust: %s", stdout.String())
+	}
+}
+
+func TestConfigureCodexCancellationDoesNotWrite(t *testing.T) {
+	root := createRepo(t)
+	initializeMemory(t, root)
+	var stdout, stderr bytes.Buffer
+	prompt := func(plan initmemory.Plan) (bool, error) {
+		if len(plan.Entries) != 2 {
+			t.Fatalf("confirmation received %d plan entries, want 2", len(plan.Entries))
+		}
+		return false, nil
+	}
+	lister := func() ([]string, error) { return nil, nil }
+	code := executeWithCodexLister([]string{"memory", "configure", "codex"}, root, &stdout, &stderr, true, prompt, lister)
+	if code != 0 || !strings.Contains(stdout.String(), "Cancelado") {
+		t.Fatalf("execute() = %d, stdout %s, stderr %s", code, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(root, ".codex", "config.toml")); !os.IsNotExist(err) {
+		t.Fatalf("Codex config was written after cancellation: err = %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".orbit", "atomic-memory.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"mode": "personal"`) {
+		t.Fatal("Atomic Memory project config changed after cancellation")
+	}
+}
+
+func TestConfigureCodexFailsClosedWhenCodexCannotBeInspected(t *testing.T) {
+	root := createRepo(t)
+	initializeMemory(t, root)
+	var stdout, stderr bytes.Buffer
+	lister := func() ([]string, error) { return nil, errCodexList }
+	code := executeWithCodexLister([]string{"memory", "configure", "codex", "--yes"}, root, &stdout, &stderr, false, nil, lister)
+	if code == 0 || !strings.Contains(stderr.String(), "no se aplicaron cambios") {
+		t.Fatalf("execute() = %d, stderr: %s", code, stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(root, ".codex", "config.toml")); !os.IsNotExist(err) {
+		t.Fatalf("configuration changed after Codex inspection failed: err = %v", err)
+	}
+}
+
+func TestConfigureCodexPreservesUnownedProjectConfig(t *testing.T) {
+	root := createRepo(t)
+	initializeMemory(t, root)
+	path := filepath.Join(root, ".codex", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	want := []byte("# personal settings\n")
+	if err := os.WriteFile(path, want, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	lister := func() ([]string, error) { return nil, nil }
+	code := executeWithCodexLister([]string{"memory", "configure", "codex", "--yes"}, root, &stdout, &stderr, false, nil, lister)
+	if code == 0 {
+		t.Fatal("configure succeeded despite an unowned config conflict")
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("unowned Codex config changed: got %q, want %q", got, want)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".orbit", "atomic-memory.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"mode": "personal"`) {
+		t.Fatal("Atomic Memory config was partially updated despite Codex conflict")
+	}
+}
+
+var errCodexList = errors.New("Codex list unavailable")

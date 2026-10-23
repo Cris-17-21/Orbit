@@ -9,3 +9,9 @@ Consulta la [especificación del producto](docs/product-spec.md) para conocer el
 ## Compilar el CLI desde el código fuente
 
 Para compilar desde el código fuente se requiere Go 1.24 o posterior. Ejecuta `go test ./...` y `go build -o <ruta-de-salida>/orbit ./cmd/orbit`. Desde un proyecto Git, ejecuta `orbit init` para revisar los archivos que se crearán. Añade `--yes` solo si quieres aplicar el plan sin una confirmación interactiva.
+
+### Atomic Memory con Codex
+
+Después de `orbit init`, ejecuta `orbit memory configure codex` para revisar y activar el modo personal de Atomic Memory. El comando detecta un servidor Codex llamado `atomicmemory` para evitar duplicarlo. Si no existe, propone `.codex/config.toml`, que Codex solo carga en proyectos de confianza.
+
+Orbit nunca guarda la clave API ni la identidad del colaborador en el repositorio. Cada persona configura localmente `ATOMICMEMORY_API_KEY` y `ATOMICMEMORY_SCOPE_USER` antes de iniciar Codex. La configuración de proyecto declara esas variables como referencias del entorno. Para elegir otro backend, usa `--backend connected-local` o `--backend self-hosted --api-url https://tu-servidor`; `--yes` aplica el plan sin confirmación interactiva.
