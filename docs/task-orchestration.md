@@ -74,6 +74,8 @@ For a substantial change, the orchestrator drafts a specification with:
 
 The specification distinguishes confirmed facts from assumptions and proposals. Criteria should describe observable outcomes and avoid prescribing implementation details unless the implementation choice is itself a requirement.
 
+Use the reusable [specification template](spec-template.md) as a starting point. The task owner may omit sections that do not apply, but must keep scope, acceptance criteria, and validation clear enough to review.
+
 ### 7. Ask the task owner to accept the specification
 
 The orchestrator presents the draft and asks the person responsible for the task to accept it or request changes. It does not start implementation while material business decisions or acceptance conditions remain unresolved.
