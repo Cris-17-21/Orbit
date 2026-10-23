@@ -1,141 +1,141 @@
-# Orbit agent adapter contract
+# Contrato de adaptadores de agentes de Orbit
 
-- status: design proposal
-- updated: 2026-10-23
+- estado: propuesta de diseño
+- actualizado: 2026-10-23
 
-Orbit has one workflow and one source library of skills. An agent adapter maps that shared contract into a host's supported files and runtime capabilities. An adapter must not silently claim that two hosts behave identically.
+Orbit mantiene un solo flujo y una biblioteca fuente de skills. Cada adaptador traduce ese contrato a los archivos y capacidades de ejecución que admite un agente. No debe insinuar que todos los agentes se comportan igual.
 
-## Shared adapter responsibilities
+## Responsabilidades compartidas
 
-Every adapter must provide these operations to the Go CLI:
+Cada adaptador ofrece al CLI de Go estas operaciones:
 
-1. **Detect:** identify whether the host is installed, its version, active configuration roots, and usable project/user scopes.
-2. **Describe capabilities:** report support and evidence for instructions, skills, subagent definitions, runtime delegation, MCP, lifecycle hooks, and usage telemetry.
-3. **Plan:** return the exact files and structured configuration entries it intends to create, update, skip, or remove.
-4. **Apply:** write only resources approved by Orbit's installer and recorded in the ownership manifest.
-5. **Verify:** report whether the host can discover the installed workflow, skills, subagent profiles, and optional Atomic Memory connection.
-6. **Remove:** remove or restore only manifest-owned resources, following the safe ownership rules in [installation ownership](install-ownership.md).
+1. **Detectar:** identificar si el host está instalado, su versión, raíces de configuración activas y alcances personales o de proyecto disponibles.
+2. **Describir capacidades:** informar soporte y evidencia de instrucciones, skills, perfiles de subagentes, delegación en ejecución, MCP, hooks de ciclo de vida y métricas de uso.
+3. **Planificar:** devolver los archivos y entradas de configuración exactos que pretende crear, actualizar, omitir o quitar.
+4. **Aplicar:** escribir solo recursos aprobados por el instalador de Orbit y registrados en el manifiesto de propiedad.
+5. **Verificar:** informar si el host encuentra el flujo, las skills, perfiles de subagentes y conexión opcional con Atomic Memory instalados.
+6. **Quitar:** retirar o restaurar solo recursos propios del manifiesto, según las [reglas de propiedad de instalación](install-ownership.md).
 
-Capability values are:
+Valores de capacidad:
 
-- `native`: host provides the capability and the adapter can configure it.
-- `manual`: the host supports it, but the user must complete a host UI, authentication, or trust action.
-- `fallback`: Orbit can continue with reduced behavior in the main agent, without pretending the native capability exists.
-- `unavailable`: the host/runtime version does not provide it or Orbit cannot verify it.
+- **native:** el host ofrece la capacidad y el adaptador puede configurarla.
+- **manual:** el host la admite, pero la persona debe completar una acción en la interfaz, autenticación o confianza.
+- **fallback:** Orbit continúa con comportamiento reducido en el agente principal sin fingir que existe capacidad nativa.
+- **unavailable:** la versión del host/runtime no la ofrece o Orbit no puede verificarla.
 
-The adapter reports the host version and evidence for any `native` claim. Unknown versions use conservative capabilities and trigger a compatibility notice.
+El adaptador informa versión del host y evidencia para cada afirmación native. Ante una versión desconocida, usa capacidades conservadoras y muestra un aviso de compatibilidad.
 
-## Shared skill contract
+## Contrato compartido de skills
 
-- Keep the canonical skill source in Orbit's own repository namespace.
-- Use the Agent Skills folder format with one `SKILL.md` per skill, concise `name` and `description` metadata, and optional supporting references/assets/scripts.
-- Keep skills focused. Load detailed instructions only when a skill is selected or invoked.
-- Prefix Orbit skill names and generated slash commands with `orbit-` where host naming rules allow it.
-- Preserve user skill names and directories. A collision is handled by Orbit's safe installation conflict flow.
-- Do not put long always-loaded workflow text in every host's global prompt. Install a short entry instruction that points the agent to the orchestrator skill.
-- Keep templates and project artifacts in the repository; do not copy arbitrary project context into a user's global configuration.
+- Mantener la fuente canónica en un namespace propio de Orbit.
+- Usar el formato de carpeta Agent Skills: un archivo SKILL.md por skill, metadatos concisos de nombre y descripción, y recursos opcionales.
+- Mantener las skills enfocadas. Cargar instrucciones detalladas solo al seleccionarlas o invocarlas.
+- Anteponer orbit- a nombres de skills y comandos slash generados cuando las reglas del host lo permitan.
+- Preservar nombres y directorios de skills de la persona. Resolver colisiones con el flujo seguro de conflictos de Orbit.
+- No insertar instrucciones extensas de flujo en todos los prompts globales del host. Instalar una instrucción breve que remita a la skill del orquestador.
+- Mantener plantillas y artefactos del proyecto en el repositorio; no copiar contexto arbitrario del proyecto a configuración global.
 
-The precise destination path and any host-specific metadata are owned by each adapter and must follow that host's current documentation.
+Cada adaptador determina la ruta y metadatos específicos según la documentación actual del host.
 
-## Shared subagent contract
+## Contrato compartido de subagentes
 
-A role profile is host-neutral content containing:
+Un perfil neutral al host contiene:
 
-- stable role ID and short name;
-- concise delegation description and trigger conditions;
-- focused instructions and expected output format;
-- required context references;
-- minimum tools/permissions needed, classified as read-only or write-capable;
-- suggested concurrency policy, with no model/provider hard-coded by default.
+- ID estable del rol y nombre corto;
+- descripción de delegación y condiciones para activarlo;
+- instrucciones enfocadas y formato de salida esperado;
+- referencias de contexto requeridas;
+- herramientas y permisos mínimos, marcados como lectura o escritura;
+- política de concurrencia sugerida, sin fijar modelo o proveedor por defecto.
 
-The adapter translates a role profile into native subagent files or plugin metadata when available. The orchestrator delegates only independent, bounded work. It passes only the relevant specification, memory records, files, and skills. It asks for concise findings with evidence references and unresolved questions.
+El adaptador traduce el perfil a archivos nativos de subagentes o metadatos de plugin cuando existan. El orquestador delega solo trabajo independiente y acotado, y entrega únicamente la especificación, memoria, archivos y skills pertinentes. Pide conclusiones breves con referencias de evidencia y preguntas abiertas.
 
-When native subagents are not available in the active host/runtime, `fallback` means the primary agent does the work itself or asks the user to run a separate session. Orbit must not create nested prompts and call that a subagent, and must not claim token savings. If the host exposes usage, record main and delegated usage separately; otherwise report that token savings cannot be measured for that run.
+Si el host/runtime activo no ofrece subagentes nativos, fallback significa que el agente principal hace el trabajo o pide a la persona iniciar otra sesión. Orbit no crea prompts anidados y los llama subagentes, ni afirma ahorro de tokens sin evidencia. Si el host expone uso, registra por separado el consumo principal y delegado; de lo contrario indica que no se puede medir el ahorro de esa ejecución.
 
-## Capability matrix
+## Matriz de capacidades
 
-This matrix records the current design baseline. Exact file paths and version support remain adapter implementation details and must be checked against official host documentation when each adapter is built.
+Esta matriz recoge el diseño actual. Las rutas exactas y compatibilidad por versión son detalles de implementación y deben revisarse en fuentes oficiales cuando se construya cada adaptador.
 
-| Capability | Codex | Claude Code | Antigravity |
+| Capacidad | Codex | Claude Code | Antigravity |
 | --- | --- | --- | --- |
-| Project instructions | `AGENTS.md` recognized; keep Orbit entry guidance short and namespaced | `CLAUDE.md` plus skills; keep always-loaded guidance short | Rules and workspace skills; use project scope where possible |
-| Shared skills | `SKILL.md` skills supported; package or install project skills using the host's documented scope | `SKILL.md` under Claude skill conventions; skill bodies load when invoked | Agent Skills supported; workspace skills and plugin-provided skills supported |
-| Native subagent definitions | Runtime-dependent; verify installed Codex surface. OpenAI's managed Codex/Agents API documents multi-agent delegation | Native custom subagents with separate contexts, tool sets, permissions, and optional preloaded skills | Antigravity CLI documents asynchronous subagents; plugin bundles can include agent profiles |
-| Delegation fallback | Use primary agent if active Codex runtime does not expose delegation | Use primary agent for work that does not benefit from delegation | Use primary agent if the active Antigravity surface lacks the required delegation control |
-| MCP | Supported; configure through Codex's supported MCP settings/CLI | Supported with local, project, and user scopes | Supported; CLI/IDE can use global or workspace MCP configuration |
-| Atomic Memory | Atomic Memory documents a Codex MCP integration | Atomic Memory documents a Claude Code integration, including memory skill and lifecycle hooks | Antigravity supports MCP, but Atomic Memory's coding-agent integration table does not currently list an Antigravity-specific adapter; begin with generic MCP setup and verify in a pilot |
-| Usage/token visibility | Host/version-dependent; report only measured values | Provider/runtime-dependent; subagent usage may count toward the same usage limits | Host/version-dependent; report only measured values |
+| Instrucciones de proyecto | Reconoce AGENTS.md; mantener breve y con namespace de Orbit | CLAUDE.md y skills; mantener breve la guía siempre cargada | Reglas y skills de espacio; preferir alcance del proyecto |
+| Skills compartidas | Admite skills SKILL.md; empaquetar o instalar según el alcance documentado | SKILL.md según sus convenciones; el contenido se carga al invocarse | Admite Agent Skills, skills de espacio y plugins |
+| Perfiles nativos de subagentes | Depende del runtime; verificar la superficie Codex instalada. La API de OpenAI Agents documenta delegación multiagente en su runtime administrado | Subagentes personalizados con contextos, herramientas y permisos separados, y skills precargadas opcionales | El CLI documenta subagentes asíncronos; los plugins pueden incluir perfiles |
+| Alternativa de delegación | Usar agente principal si el runtime Codex activo no delega | Usar agente principal si delegar no aporta | Usar agente principal si la superficie Antigravity no ofrece el control necesario |
+| MCP | Disponible; configurar mediante ajustes/CLI admitidos por Codex | Disponible en alcances local, proyecto y usuario | Disponible; CLI/IDE permite configuración global o del espacio |
+| Atomic Memory | Documenta integración MCP con Codex | Documenta integración con Claude Code | Admite MCP, pero la lista actual de Atomic Memory no incluye adaptador específico; iniciar con MCP genérico y validar en piloto |
+| Visibilidad de uso/tokens | Depende del host y versión; informar solo valores medidos | Depende del proveedor/runtime; subagentes pueden contar para el mismo límite | Depende del host y versión; informar solo valores medidos |
 
-## Host-specific behavior
+## Comportamiento por host
 
 ### Codex
 
-- Install the shared orchestrator skill and short project instruction using the selected project or user scope.
-- Add the Atomic Memory MCP entry only when the user opted in and credentials are available through a supported secure mechanism.
-- Treat native subagent support as a runtime capability, not an assumption based solely on the agent name. The OpenAI Agents API uses a managed Codex harness and documents subagent orchestration; that does not automatically establish parity for every Codex client or version.
-- Verify skills, MCP, and any available delegation with the installed Codex surface and report partial support clearly.
+- Instalar la skill compartida del orquestador y una instrucción breve dentro del alcance de usuario o proyecto seleccionado.
+- Agregar Atomic Memory MCP solo si la persona optó por usarlo y las credenciales están disponibles mediante un mecanismo seguro admitido.
+- Tratar subagentes como una capacidad del runtime, no como una suposición basada en el nombre del agente. La API administrada Codex/Agents documenta orquestación, pero no demuestra que todos los clientes o versiones Codex la admitan.
+- Verificar skills, MCP y delegación disponible en la superficie instalada, e informar soporte parcial claramente.
 
 ### Claude Code
 
-- Install namespaced skills and project guidance using Claude Code's project-scoped conventions.
-- Install namespaced subagent profiles with least-privilege tool access and concise descriptions; detailed instructions load only when the subagent runs.
-- Configure Atomic Memory MCP at project scope when sharing should be project-specific. Respect Claude Code's project trust and approval flow; Orbit should report when the user must approve or authenticate the server.
-- Do not copy credentials into checked-in settings or skill files.
+- Instalar skills con namespace e instrucciones de proyecto según las convenciones de alcance del host.
+- Instalar perfiles de subagentes con permisos mínimos y descripciones concisas; las instrucciones completas se cargan al ejecutarse.
+- Configurar Atomic Memory MCP en el alcance de proyecto cuando el uso compartido corresponda al proyecto. Respetar el flujo de confianza y aprobación de Claude Code e indicar si la persona debe aprobar o autenticar el servidor.
+- No copiar credenciales a ajustes versionados ni archivos de skills.
 
 ### Antigravity
 
-- Prefer its documented plugin bundle when that gives Orbit a stable namespaced container for skills, agent profiles, rules, MCP, and hooks.
-- For project-local skills and MCP, use the workspace locations documented by the active Antigravity product surface.
-- Since Atomic Memory currently documents no Antigravity-specific coding-agent package in its integration overview, configure its MCP endpoint as a generic server only after validating the current server schema, scope identity, and credential flow. `doctor` must label this route as generic MCP rather than a vendor-maintained Atomic Memory adapter.
-- The host may require a UI-based trust or server approval step; report that as `manual` and verify the connection afterward.
+- Preferir el paquete de plugin documentado cuando ofrezca un contenedor estable con namespace para skills, perfiles, reglas, MCP y hooks.
+- Para skills y MCP locales al proyecto, usar las ubicaciones de espacio documentadas por la versión activa de Antigravity.
+- Atomic Memory no documenta actualmente un paquete específico para agentes de programación Antigravity. Configurar su endpoint como MCP genérico solo tras validar el esquema, identidad de alcance y credenciales. doctor debe etiquetar esa ruta como MCP genérico, no como adaptador oficial de Atomic Memory.
+- El host podría requerir aprobación de confianza en la interfaz. Informarlo como manual y verificar la conexión después.
 
-## Atomic Memory normalization
+## Comportamiento común para Atomic Memory
 
-When enabled, the Orbit orchestrator should use the same memory behavior regardless of host:
+Cuando se habilite, el orquestador debe mantener un comportamiento de memoria consistente entre hosts:
 
-- Search the configured project/workspace scope at task start.
-- Include only relevant memories and preserve their source, scope, status, and provenance.
-- Use a stable identity for the human/workspace and a distinct caller identity for each adapter/agent where required.
-- Store approved durable project knowledge only after proposing a reviewable update; keep personal memory separate.
-- Use Atomic Memory's MCP tools through the host adapter. The workflow skill determines when and how to call the tools; the memory server handles storage and scope enforcement.
-- If Atomic Memory is configured but unreachable, continue from project Markdown, warn that shared recall is unavailable, and do not claim the memory was written.
+- Buscar el alcance configurado del proyecto/espacio al comenzar una tarea.
+- Incluir solo recuerdos pertinentes y conservar fuente, alcance, estado y procedencia.
+- Usar identidad estable para la persona/equipo y una identidad de cliente diferenciada por adaptador/agente cuando sea necesario.
+- Guardar conocimiento duradero aprobado solo después de proponer una actualización revisable; mantener separada la memoria personal.
+- Usar las herramientas MCP de Atomic Memory mediante el adaptador del host. La skill de flujo determina cuándo y cómo invocarlas; el servidor gestiona almacenamiento y alcance.
+- Si Atomic Memory está configurado pero no disponible, continuar con Markdown del proyecto, avisar que no se pudo recuperar memoria compartida y no afirmar que se guardó.
 
-The adapter must check the current Atomic Memory scope and integration requirements at implementation time; provider scope and host connection behavior can change independently.
+El adaptador debe verificar los alcances y requisitos vigentes de Atomic Memory al implementarse; la identidad del proveedor y el comportamiento de conexión del host pueden cambiar.
 
-## Installation verification
+## Verificación de instalación
 
-`orbit doctor` reports, per selected host:
+orbit doctor informa, para cada host elegido:
 
-- detected host name and version;
-- selected installation scope and managed targets;
-- orchestrator instruction/skill discovery status;
-- subagent definition and runtime delegation status separately;
-- MCP server configured, requiring approval/authentication, connected, or unavailable;
-- Atomic Memory mode: vendor integration, generic MCP, disabled, or unknown;
-- any unsupported, manual, or fallback behavior.
+- nombre y versión detectados;
+- alcance elegido y destinos administrados;
+- estado de descubrimiento de instrucciones y skills del orquestador;
+- estado de perfiles de subagentes y delegación por separado;
+- servidor MCP configurado, pendiente de aprobación/autenticación, conectado o no disponible;
+- modalidad de Atomic Memory: integración del proveedor, MCP genérico, deshabilitada o desconocida;
+- comportamientos incompatibles, manuales o alternativos.
 
-`doctor` must not mark an MCP server connected solely because its config entry exists. It should use host/server status when available and otherwise report `configured, connection unverified`.
+doctor no debe marcar un servidor MCP como conectado solo porque exista una entrada de configuración. Si el host no ofrece estado de conexión, informa configurado, conexión sin verificar.
 
-## Current documentation references
+## Referencias oficiales consultadas
 
-- [Codex and OpenAI skills](https://developers.openai.com/plugins/concepts/skills)
-- [Codex/Agents API multi-agent](https://developers.openai.com/api/docs/guides/agents-api/multi-agent)
-- [Claude Code skills](https://code.claude.com/docs/en/skills)
-- [Claude Code subagents](https://code.claude.com/docs/en/sub-agents)
-- [Claude Code MCP](https://code.claude.com/docs/en/mcp)
-- [Antigravity plugins and skills](https://www.antigravity.google/docs/cli/plugins/)
-- [Antigravity CLI subagents](https://www.antigravity.google/docs/cli/features/)
-- [Antigravity MCP](https://www.antigravity.google/docs/mcp)
-- [Atomic Memory integrations](https://docs.atomicstrata.ai/integrations/overview)
-- [Atomic Memory scopes](https://docs.atomicstrata.ai/platform/scope)
+- [Skills de Codex y OpenAI](https://developers.openai.com/plugins/concepts/skills)
+- [API de Codex/Agents: varios agentes](https://developers.openai.com/api/docs/guides/agents-api/multi-agent)
+- [Skills de Claude Code](https://code.claude.com/docs/en/skills)
+- [Subagentes de Claude Code](https://code.claude.com/docs/en/sub-agents)
+- [MCP de Claude Code](https://code.claude.com/docs/en/mcp)
+- [Plugins y skills de Antigravity](https://www.antigravity.google/docs/cli/plugins/)
+- [Subagentes del CLI de Antigravity](https://www.antigravity.google/docs/cli/features/)
+- [MCP de Antigravity](https://www.antigravity.google/docs/mcp)
+- [Integraciones de Atomic Memory](https://docs.atomicstrata.ai/integrations/overview)
+- [Alcances de Atomic Memory](https://docs.atomicstrata.ai/platform/scope)
 
-These references describe separate products and release tracks. Recheck support, configuration paths, and authentication when implementing or updating an adapter.
+Estas fuentes describen productos y versiones distintos. Volver a comprobar soporte, rutas de configuración y autenticación al implementar o actualizar un adaptador.
 
-## Open implementation decisions
+## Decisiones de implementación abiertas
 
-- Minimum supported version for each agent and how adapters discover that version.
-- Whether Codex plugin packaging, project-local skills, or both are used for each install scope.
-- Exact role file conversion and permissions mapping for every native subagent system.
-- Which Atomic Memory deployment modes are supported on each host at first release.
-- What metrics are exposed by each host and how Orbit records token usage without storing sensitive prompts.
-- How to test each adapter in CI without requiring a user's authenticated agent installation.
+- Versión mínima admitida de cada agente y cómo detectarla.
+- Si usar paquetes Codex, skills locales al proyecto o ambos para cada alcance.
+- Conversión de perfiles de roles y permisos a cada sistema de subagentes.
+- Modalidades de Atomic Memory admitidas inicialmente en cada host.
+- Métricas disponibles y cómo registrar uso de tokens sin almacenar prompts sensibles.
+- Pruebas de adaptadores en CI sin requerir sesiones autenticadas de agentes.

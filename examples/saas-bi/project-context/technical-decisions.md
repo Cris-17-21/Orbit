@@ -1,13 +1,13 @@
-# Technical decisions
+# Decisiones técnicas
 
-### ADR-001: Keep the conversion metric tied to explicit lifecycle events
+### ADR-001: Vincular la métrica a eventos explícitos del ciclo de vida
 
 - type: technical-decision
-- scope: invitation conversion analytics
+- scope: analítica de conversión de invitaciones
 - status: proposed
 - created: 2026-10-22
 - updated: 2026-10-22
-- source: `../specs/invitation-conversion/spec.md` (draft example)
-- owner: technical lead (example role)
+- source: ../specs/invitation-conversion/spec.md (borrador ilustrativo)
+- owner: responsable técnico (rol de ejemplo)
 
-The metric should be derived from explicit invitation lifecycle events with stable invitation and workspace identifiers, rather than inferred from email opens. The implementation mechanism, event names, retention, and warehouse model remain open until the project stack is inspected and the design is accepted.
+La métrica debería derivarse de eventos explícitos del ciclo de vida de la invitación con identificadores estables de invitación y espacio, en vez de inferirse de aperturas de correo. El mecanismo, los nombres de eventos, la retención y el modelo del almacén de datos siguen abiertos hasta inspeccionar la tecnología del proyecto y aceptar el diseño.

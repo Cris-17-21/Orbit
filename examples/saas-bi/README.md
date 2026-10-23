@@ -1,12 +1,12 @@
-# SaaS and BI example
+# Ejemplo SaaS y BI
 
-This fictional example demonstrates Orbit's Markdown memory contract and an SDD specification for a SaaS workspace invitation funnel.
+Este ejemplo ficticio muestra el contrato de memoria Markdown de Orbit y una especificación SDD para un embudo de invitaciones a un espacio SaaS.
 
-All product rules and technical choices here are illustrative proposals. They are not approved requirements for a real product. The task owner would resolve the open questions in the specification and accept the resulting version before implementation.
+Todas las reglas y decisiones técnicas son propuestas ilustrativas, no requisitos aprobados de un producto real. La persona responsable debe resolver las preguntas abiertas y aceptar la especificación antes de implementar.
 
-## Contents
+## Contenido
 
-- `project-context/` contains shared project memory separated by category.
-- `specs/invitation-conversion/spec.md` contains the change-specific draft specification.
+- project-context/ contiene memoria compartida separada por categoría.
+- specs/invitation-conversion/spec.md contiene el borrador de una especificación para un cambio.
 
-The Markdown files are the example's source of truth. An Atomic Memory integration could retrieve this context, but it is not needed to use the example.
+Los archivos Markdown son la fuente de verdad del ejemplo. Una integración de Atomic Memory podría recuperar este contexto, pero no es necesaria para usarlo.

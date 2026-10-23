@@ -1,202 +1,197 @@
-# Orbit product specification
+# Especificación del producto Orbit
 
-- status: draft for review
-- product: Orbit
-- updated: 2026-10-23
-- repository: https://github.com/Cris-17-21/Orbit
+- estado: borrador para revisión
+- producto: Orbit
+- actualizado: 2026-10-23
+- repositorio: https://github.com/Cris-17-21/Orbit
 
-This document consolidates Orbit's product direction and approved design decisions. It is not an implementation specification for a single feature. Items marked **Open** still need a product decision before the affected capability is built.
+Este documento consolida la dirección del producto y las decisiones de diseño aceptadas. No es la especificación de implementación de una función. Las decisiones abiertas deben resolverse antes de construir las capacidades afectadas.
 
-## Product intent
+## Propósito
 
-Orbit is an installable workflow toolkit for people building software with AI coding agents. It helps a team turn requests into accepted specifications, small implementation tasks, focused pull requests, and evidence-backed validation. It also helps collaborators carry useful project context across people, agents, and sessions.
+Orbit es un conjunto de herramientas instalable para equipos que desarrollan software con agentes de programación con IA. Ayuda a convertir solicitudes en especificaciones aceptadas, tareas pequeñas, pull requests acotados y validaciones con evidencia. También permite compartir contexto útil entre colaboradores, agentes y sesiones.
 
-Orbit is distributed from GitHub and configured through a Go CLI with an interactive terminal interface. It works with the coding agents a person already uses; Orbit does not provide or install the underlying models or agent products.
+Orbit se distribuye desde GitHub y se configura mediante un CLI en Go con una interfaz guiada para terminal. Funciona con agentes que la persona ya usa; no proporciona ni instala los modelos o productos de agentes.
 
-## Users and needs
+## Usuarios y necesidades
 
-### Primary users
+### Usuarios principales
 
-- Software developers and product builders working with AI coding agents.
-- Small product teams and collaborators who need shared rules, decisions, and task context.
-- Teams building substantial SaaS products, including BI and data capabilities.
+- Desarrolladores y responsables de producto que trabajan con agentes de programación con IA.
+- Equipos pequeños que necesitan compartir reglas, decisiones y contexto de tareas.
+- Equipos que construyen SaaS sustanciales, incluso con funciones de BI y datos.
 
-### User needs
+### Necesidades
 
-- Turn an unclear request into a bounded task and verifiable acceptance criteria.
-- Make business rules explicit and reviewable.
-- Let the person responsible for a task accept its specification without requiring every partner to approve every step.
-- Split work into small PRs that can be reviewed and integrated independently where dependencies allow.
-- Reuse project context across agents and sessions without treating stale notes as current rules.
-- Use specialized subagents when they help, while controlling context and token cost.
-- Install, update, inspect, and remove Orbit without disrupting existing agent configuration or user-installed skills.
+- Convertir solicitudes poco claras en tareas acotadas con criterios verificables.
+- Hacer explícitas y revisables las reglas de negocio.
+- Permitir que la persona responsable de la tarea acepte su especificación sin requerir aprobación de todos los socios en cada paso.
+- Dividir trabajo en PR pequeños que puedan revisarse e integrarse por separado cuando sus dependencias lo permitan.
+- Reutilizar contexto del proyecto entre agentes y sesiones sin tratar notas antiguas como reglas vigentes.
+- Usar subagentes especializados cuando aporten valor y controlar el contexto y costo de tokens.
+- Instalar, actualizar, inspeccionar y quitar Orbit sin alterar la configuración existente de los agentes ni las skills instaladas por la persona.
 
-## Approved product decisions
+## Decisiones de producto aceptadas
 
-- The project name is **Orbit**.
-- The CLI is written in **Go** and uses **Bubble Tea** for its guided terminal interface.
-- Initial agent integrations include **Codex, Claude Code, and Antigravity**.
-- The workflow and source skills are shared; each agent has an adapter for its supported configuration formats and capabilities.
-- Subagent roles are selected intelligently for the task or when directly requested; they are not mandatory workflow stages.
-- Delegate independent, bounded work with only the necessary context and concise evidence-based results. Measure token savings rather than assuming delegation is cheaper.
-- Project Markdown is the default, version-controlled memory format. Atomic Memory is optional. A hybrid mode is deferred until synchronization and conflict handling are designed.
-- Memory records separate business rules, technical decisions, and project context. They carry type, content, scope, status, date, source, and owner. Current records identify who approved them; superseded records link to replacements when available.
-- The installation experience is interactive and visually clear, supports keyboard navigation, and also works non-interactively through flags.
-- Orbit manages only its own registered files. It must preserve user-installed skills and unrelated configuration during install, update, and uninstall.
-- Orbit supports selecting a version, checking for updates, updating, and rolling back.
+- El nombre del proyecto es Orbit.
+- El CLI se escribe en Go y usa Bubble Tea para su interfaz guiada de terminal.
+- Las primeras integraciones previstas son Codex, Claude Code y Antigravity.
+- El flujo y las skills fuente son compartidos; cada agente tiene un adaptador para sus formatos y capacidades.
+- Los roles de subagentes se seleccionan según la tarea o cuando alguien los pide; no son etapas obligatorias.
+- Delegar trabajo independiente y acotado con solo el contexto necesario y resultados concisos con evidencia. Medir el ahorro de tokens en vez de asumir que delegar siempre cuesta menos.
+- Markdown del proyecto es la memoria predeterminada y versionada. Atomic Memory es opcional. Un modo híbrido se posterga hasta diseñar sincronización y resolución de conflictos.
+- Los registros de memoria separan reglas de negocio, decisiones técnicas y contexto del proyecto. Incluyen tipo, contenido, alcance, estado, fecha, fuente y responsable. Los registros vigentes identifican quién los aprobó; los reemplazados enlazan al nuevo cuando existe.
+- La instalación es interactiva, clara y navegable con teclado; también debe permitir opciones no interactivas.
+- Orbit administra solo sus propios archivos registrados. Debe preservar skills y configuración ajenas durante instalación, actualización y desinstalación.
+- Orbit permite elegir versión, buscar actualizaciones, actualizar y volver a una versión previa.
+- El idioma principal de la interfaz y la documentación del proyecto es el español. Se conservan en inglés los nombres propios, identificadores técnicos y términos de herramientas cuando sean la convención establecida.
 
-## Product experience
+## Experiencia de producto
 
-### Install Orbit
+### Instalar Orbit
 
-The user obtains Orbit from its GitHub repository or a published release and runs its CLI. The guided setup:
+La persona obtiene Orbit desde GitHub o una versión publicada y ejecuta el CLI. La configuración guiada:
 
-1. Selects user-wide or project-local installation.
-2. Detects or lets the user select Codex, Claude Code, and/or Antigravity.
-3. Shows the files and configuration areas Orbit will manage.
-4. Offers project Markdown memory by default and asks whether to configure Atomic Memory.
-5. Installs the selected version, reports conflicts without silently overwriting files, and shows how to start the orchestrator.
+1. Permite elegir instalación para el usuario o para un proyecto.
+2. Detecta o permite seleccionar Codex, Claude Code y/o Antigravity.
+3. Muestra los archivos y las áreas de configuración que administrará Orbit.
+4. Ofrece memoria Markdown del proyecto y consulta si se desea configurar Atomic Memory.
+5. Instala la versión seleccionada, informa conflictos sin sobrescribir archivos en silencio y muestra cómo iniciar el orquestador.
 
-The install flow must have a non-interactive equivalent for scripts and repeatable team setup.
+El flujo debe tener una alternativa no interactiva para scripts y configuración repetible del equipo.
 
-### Start a task
+### Iniciar una tarea
 
-The user invokes Orbit's orchestrator from their chosen agent. Orbit identifies the repository and request, selects a lightweight or full SDD path, retrieves relevant project context, explores the code when needed, and drafts a specification for substantial work. The task owner reviews and accepts the specification. Orbit then breaks accepted scope into small tasks, delegates useful independent work, supports implementation and validation, and prepares focused PRs.
+La persona invoca el orquestador desde su agente. Orbit identifica el repositorio y la solicitud, selecciona una ruta SDD ligera o completa, recupera contexto pertinente, explora el código cuando corresponda y redacta una especificación para cambios sustanciales. La persona responsable de la tarea la revisa y acepta. Después Orbit divide el alcance aceptado en tareas pequeñas, delega trabajo independiente útil, apoya la implementación y validación, y prepara PR enfocados.
 
-The detailed task-start behavior is described in [task orchestration](task-orchestration.md).
+El comportamiento detallado está descrito en [orquestación de tareas](task-orchestration.md).
 
-### Share project memory
+### Compartir memoria del proyecto
 
-Markdown memory lives in the project repository and is reviewable through Git. Atomic Memory, when configured, provides scoped retrieval and storage across sessions. Memory informs the work but does not independently approve a business rule or replace an accepted SDD artifact.
+La memoria Markdown vive en el repositorio y se revisa mediante Git. Atomic Memory, si está configurado, permite recuperar y guardar contexto con alcance entre sesiones. La memoria informa el trabajo, pero no aprueba por sí sola una regla de negocio ni reemplaza un artefacto SDD aceptado.
 
-The initial memory rules are described in [the memory contract](memory-contract.md).
+Las reglas iniciales se describen en el [contrato de memoria](memory-contract.md).
 
-### Maintain Orbit
+### Mantener Orbit
 
-The CLI reports its installed version and managed files, checks for available versions, updates to a selected release, and restores a prior version. It includes `orbit doctor` to inspect Orbit's installation and report actionable configuration problems.
+El CLI muestra la versión instalada y los archivos administrados, busca versiones disponibles, actualiza a una versión elegida y restaura una versión anterior. Incluye orbit doctor para inspeccionar la instalación e informar problemas de configuración con pasos concretos.
 
-## Shared workflow
+## Flujo compartido
 
-1. Understand the request and identify the project.
-2. Choose lightweight work or full SDD based on scope, risk, and user preference.
-3. Retrieve relevant Markdown memory and optional Atomic Memory context.
-4. Explore existing behavior and project conventions.
-5. Select only useful specialist roles and bounded subagent tasks.
-6. Draft the specification, business rules, assumptions, open questions, and verifiable acceptance criteria.
-7. Ask the task owner to accept or revise the specification.
-8. Break accepted scope into small tasks with dependencies and validation evidence.
-9. Implement, validate, and prepare small PRs.
-10. Propose durable memory updates with source and status.
+1. Entender la solicitud e identificar el proyecto.
+2. Elegir trabajo ligero o SDD completo según alcance, riesgo y preferencia.
+3. Recuperar memoria Markdown y, si está habilitada, memoria de Atomic Memory.
+4. Explorar el comportamiento y las convenciones existentes.
+5. Seleccionar solo roles especialistas útiles y subtrabajos acotados.
+6. Redactar especificación, reglas de negocio, supuestos, preguntas y criterios verificables.
+7. Pedir a la persona responsable que acepte o revise la especificación.
+8. Dividir el alcance aceptado en tareas pequeñas con dependencias y evidencia.
+9. Implementar, validar y preparar PR pequeños.
+10. Proponer actualizaciones duraderas de memoria.
 
-This workflow is flexible for small changes; not every task requires every phase or a subagent.
+El flujo se adapta a cambios pequeños; no todas las tareas requieren todas las fases ni un subagente.
 
-## Initial capability areas
+## Áreas iniciales de capacidad
 
 ### CLI
 
-Proposed commands:
+Comandos propuestos:
 
-| Command | Purpose |
+| Comando | Propósito |
 | --- | --- |
-| `orbit` | Open the guided setup or main interactive menu |
-| `orbit install` | Install a chosen Orbit version and selected agent integrations |
-| `orbit init` | Initialize Orbit's project workflow and Markdown memory structure |
-| `orbit doctor` | Diagnose managed files and configured integrations |
-| `orbit update` | Update to a selected or latest compatible release |
-| `orbit update --check` | Show available updates without changing files |
-| `orbit rollback` | Restore a previously installed Orbit version |
-| `orbit uninstall` | Remove Orbit-managed files and configuration only |
+| orbit | Abrir la configuración guiada o el menú principal |
+| orbit install | Instalar una versión elegida de Orbit y las integraciones seleccionadas |
+| orbit init | Inicializar el flujo de trabajo y la estructura de memoria Markdown del proyecto |
+| orbit doctor | Diagnosticar archivos administrados e integraciones configuradas |
+| orbit update | Actualizar a una versión elegida o compatible más reciente |
+| orbit update --check | Mostrar actualizaciones disponibles sin cambiar archivos |
+| orbit rollback | Restaurar una versión instalada previamente |
+| orbit uninstall | Quitar solo archivos y configuración administrados por Orbit |
 
-Command names and whether `install` and `init` remain separate are **Open** until the CLI design phase.
+Los nombres y la separación entre install e init siguen abiertos hasta diseñar el CLI.
 
-### Orchestrator and skills
+### Orquestador y skills
 
-Orbit packages a small entry skill for starting the workflow and focused skills for recurring activities such as exploration, requirements, SDD specification, task planning, BI/data analysis, implementation, testing, UI/UX, security, and review. The exact skill catalog is **Open** and should be derived from the agreed workflow and real use cases.
+Orbit incluirá una skill de entrada pequeña para iniciar el flujo y skills enfocadas en actividades recurrentes: exploración, requisitos, especificación SDD, planificación, datos/BI, implementación, pruebas, UI/UX, seguridad y revisión. El catálogo exacto sigue abierto y debe surgir del flujo acordado y de casos de uso reales.
 
-Skills are stored once as source content where possible. Agent adapters install or package them in each host's expected location. Existing user skills remain available and untouched. Name conflicts are reported and resolved without silent replacement.
+Cuando sea posible, las skills se guardan una sola vez como contenido fuente. Los adaptadores las instalan o empaquetan en la ubicación que espera cada agente. Las skills existentes de la persona permanecen disponibles e intactas. Los conflictos de nombres se informan y resuelven sin reemplazos silenciosos.
 
-### Subagent role catalog
+### Catálogo de roles de subagentes
 
-Potential roles include repository exploration, requirements/business rules, technical design, UX, UI, frontend, backend/API, data/BI, security, implementation, testing, documentation, performance, and change review. This is a capability catalog, not a fixed roster of always-running agents. Which roles can be installed as native subagents and how they map per host are **Open**.
+Roles posibles: exploración del repositorio, requisitos y reglas de negocio, diseño técnico, UX, UI, frontend, backend/API, datos/BI, seguridad, implementación, pruebas, documentación, rendimiento y revisión de cambios. Este es un catálogo de capacidades, no un grupo fijo que siempre se ejecuta. Qué roles admite cada host como subagentes nativos y su correspondencia entre agentes sigue abierto.
 
-### Agent adapters
+### Adaptadores de agentes
 
-Each adapter documents and manages only the host-specific files needed to expose Orbit's instructions, skills, subagent profiles, and optional Atomic Memory MCP connection. Adapter capability differences must be visible in `doctor` and installation summaries. Orbit must avoid claiming identical delegation behavior across hosts when their runtime capabilities differ.
+Cada adaptador documenta y administra solo los archivos propios del host que se necesitan para exponer instrucciones, skills, perfiles de subagentes y conexión opcional de Atomic Memory MCP. Las diferencias deben ser visibles en doctor y en los resúmenes de instalación. Orbit no debe afirmar que la delegación funciona igual en todos los hosts si sus capacidades difieren.
 
-Supported agent details and version compatibility are **Open** and must be verified against the host's current official documentation during implementation.
+Los detalles de compatibilidad deben verificarse con documentación oficial vigente al implementar cada adaptador. Las responsabilidades compartidas están descritas en el [contrato de adaptadores](agent-adapter-contract.md).
 
-The shared responsibilities and current capability baseline are described in [the agent adapter contract](agent-adapter-contract.md).
+### Memoria del proyecto
 
-### Project memory
+Markdown es la alternativa base que no requiere servicios externos. Atomic Memory se configura de forma opcional. La persona selecciona o proporciona la conexión de proyecto o espacio correspondiente. Orbit distingue alcances personales y compartidos, conserva procedencia y no promueve en silencio registros propuestos o antiguos. La autenticación, identidad y modalidades local y alojada siguen abiertas.
 
-Markdown is the no-service-required baseline. The initial layout and record contract are being established in `memory-contract.md` and the SaaS/BI example. Project-level Markdown can be committed and reviewed with normal PRs.
+Los hallazgos actuales y el piloto propuesto están en la [evaluación de Atomic Memory](atomic-memory-evaluation.md). No constituyen un compromiso de incluir esa integración.
 
-Atomic Memory setup is opt-in. The user selects or supplies the relevant project/workspace connection. Orbit must keep personal and shared scopes distinct, preserve provenance, and avoid silently promoting proposed or stale records. Exact authentication, identity mapping, and hosted versus local setup are **Open**.
+### Ejemplo SaaS y BI
 
-Current integration findings and the proposed team-memory pilot are recorded in [the Atomic Memory evaluation](atomic-memory-evaluation.md). These findings are not a commitment to ship the integration.
+El ejemplo muestra categorías de memoria, una regla de negocio propuesta, una decisión técnica propuesta, un borrador de métrica de conversión de invitaciones, un desglose de tareas y una plantilla para PR enfocados. Es ficticio y no está aceptado hasta que una persona responsable lo revise.
 
-### SaaS and BI example
+## Aislamiento y propiedad de la instalación
 
-The example demonstrates memory categories, a proposed business rule, a proposed technical decision, a draft invitation conversion metric specification, task breakdown, and a focused PR template. The example remains explicitly fictional and unaccepted until a task owner reviews it.
+- Preferir instalación dentro del proyecto cuando el equipo quiera compartir el flujo mediante Git.
+- Ofrecer instalación para el usuario cuando se quiera usar personalmente en varios proyectos.
+- Registrar cada archivo y fragmento de configuración administrado, incluida la versión de Orbit.
+- Ubicar los recursos en un espacio propio de Orbit cuando el host lo permita.
+- Combinar solo entradas identificadas de Orbit y preservar las demás entradas y, cuando sea práctico, el formato.
+- Si un archivo ajeno se sobrescribiría o una skill entra en conflicto, detener esa escritura y explicar una solución segura.
+- Al desinstalar, quitar solo recursos propios. Preservar cambios de la persona y archivos ajenos; informar limpieza manual pendiente.
+- Las actualizaciones muestran la versión objetivo y los cambios relevantes, crean un punto de recuperación y permiten volver atrás.
 
-## Installation isolation and ownership
+El formato del manifiesto y el comportamiento ante cambios hechos por la persona siguen abiertos. Las reglas propuestas están en [propiedad y conflictos de instalación](install-ownership.md).
 
-- Prefer project-local installation when a team wants the workflow shared through Git.
-- Offer user-wide installation for personal use across projects.
-- Track each file and configuration fragment that Orbit owns, including the installed Orbit version.
-- Place Orbit-managed resources in a dedicated namespace or directory where the host allows it.
-- Merge only Orbit's named configuration entries; preserve unrelated entries and formatting where practical.
-- If an unmanaged file would be overwritten or a skill name conflicts, stop that write and explain a safe resolution.
-- On uninstall, remove only Orbit-managed assets. Preserve user edits and unrelated files; report anything that needs manual cleanup.
-- Updates show the target version and relevant changes, retain a recovery point, and support rollback.
+## Atributos de calidad
 
-The exact ownership manifest format and behavior when users edit managed files are **Open**.
+- **Portable:** funciona en Windows, macOS y Linux compatibles; la matriz exacta sigue abierta.
+- **Seguro:** no sobrescribe configuración en silencio, no guarda secretos en el repositorio y gestiona explícitamente credenciales de Atomic Memory.
+- **Revisable:** especificaciones, planes y cambios de memoria se presentan como diferencias Markdown cuando corresponda.
+- **Incremental:** se pueden instalar y actualizar capacidades por versión sin obligar a adoptar todas las skills nuevas.
+- **Eficiente:** carga instrucciones detalladas y memoria solo cuando son pertinentes; limita entradas y resultados de subagentes.
+- **Diagnosticable:** orbit doctor informa agentes detectados, recursos administrados, versión y estado de integraciones.
+- **Accesible:** la configuración interactiva se maneja con teclado y ofrece salida textual y opciones no interactivas.
 
-The proposed manifest and conflict-handling rules are detailed in [installation ownership](install-ownership.md).
+## Señales de éxito
 
-## Quality attributes
+Evaluar la utilidad de Orbit con tareas reales del equipo. Señales candidatas:
 
-- **Portable:** usable on supported Windows, macOS, and Linux environments; exact platform matrix is **Open**.
-- **Safe:** no silent replacement of user configuration, no secrets in repository files, and explicit handling of Atomic Memory credentials.
-- **Reviewable:** generated specifications, task plans, and memory updates are Markdown diffs where appropriate.
-- **Incremental:** capabilities can be installed and updated by version without forcing every team to adopt every new skill immediately.
-- **Efficient:** load detailed skill instructions and memory only when relevant; bound subagent inputs and outputs.
-- **Diagnosable:** `orbit doctor` reports detected agents, managed assets, version, and actionable integration status.
-- **Accessible:** interactive setup works with keyboard navigation and provides clear text output and non-interactive flags.
+- Un colaborador nuevo configura Orbit e inicia un flujo sin editar archivos manualmente.
+- Las especificaciones identifican reglas de negocio y evidencia de aceptación antes de implementar.
+- El trabajo llega en PR enfocados con criterios trazables y evidencia de validación.
+- Otra sesión o colaborador recupera decisiones pertinentes sin tratar propuestas o registros reemplazados como vigentes.
+- Delegar reduce investigación duplicada o contexto del agente principal, contabilizando el costo y calidad de los subagentes.
+- Instalar, actualizar, revertir y desinstalar preserva skills y configuración de la persona.
 
-## Success signals
+Los objetivos numéricos y la forma de evaluar siguen abiertos.
 
-Orbit's usefulness should be evaluated with real team tasks. Candidate signals include:
+## Fuera del alcance inicial
 
-- A new collaborator can configure Orbit and start a project workflow without manual file surgery.
-- Specifications identify business rules and acceptance evidence before implementation begins.
-- Work is delivered in smaller, focused PRs with traceable criteria and validation evidence.
-- A later session or collaborator can retrieve relevant project decisions without treating proposals or superseded records as current.
-- Delegation reduces duplicated investigation or main-agent context while accounting for subagent token cost and result quality.
-- Installation, update, rollback, and uninstall preserve user-owned skills and configuration.
+- Reemplazar Codex, Claude Code o Antigravity.
+- Exigir Atomic Memory para usar Orbit.
+- Crear un servicio alojado de memoria de equipo o un nuevo runtime de agentes.
+- Obligar a que todo cambio siga el ciclo SDD completo.
+- Exigir aprobación de todos los socios para cada tarea o PR.
+- Instalar un conjunto fijo y obligatorio de subagentes en cada proyecto.
 
-Numeric targets and the evaluation method are **Open**.
+## Decisiones pendientes
 
-## Out of scope for the initial product definition
+1. Versión mínima de Go y matriz de sistemas operativos y arquitecturas.
+2. Distribución desde GitHub: binarios publicados, go install, gestores de paquetes o combinación.
+3. Comandos definitivos y flujo interactivo para separar instalación e inicialización de proyecto.
+4. Convenciones de directorio por host para instalación personal y local, y resolución de conflictos de skills.
+5. Formato de artefactos SDD y si los documentos de diseño son opcionales por defecto.
+6. Registro de archivos administrados, detección de ediciones y resolución de conflictos de actualización.
+7. Autenticación, identidad del proyecto o espacio y modalidades de conexión admitidas para Atomic Memory.
+8. Capacidades de subagentes por host, mapeo de permisos y disponibilidad de métricas de tokens/costo.
+9. Si Orbit ofrece una plantilla propia de PR opcional o solo un ejemplo.
+10. Política de versiones, garantías de compatibilidad y migración de formatos de configuración anteriores.
 
-- Replacing Codex, Claude Code, or Antigravity.
-- Requiring Atomic Memory for normal Orbit use.
-- Building a hosted team memory service or a new agent runtime.
-- Forcing every change through the full SDD sequence.
-- Requiring all partners to approve every task or PR.
-- Shipping a mandatory fixed set of subagents for every project.
-
-## Open decisions
-
-1. Minimum supported Go version and operating system/architecture matrix.
-2. GitHub distribution method: release binaries, `go install`, package managers, or a combination.
-3. Exact command names and interactive flow for install versus project initialization.
-4. Project-local and user-wide directory conventions for each host, and rules for resolving skill conflicts.
-5. Which SDD artifact format to adopt or adapt, and whether design documents are optional by default.
-6. How the CLI records managed files, recognizes user edits, and handles update conflicts.
-7. Atomic Memory authentication, project/workspace identity, and supported hosted/local connection modes.
-8. Host-specific subagent capabilities, permission mapping, and token/cost telemetry availability.
-9. Whether Orbit includes its own PR template as an opt-in file or only provides an example.
-10. Release policy, compatibility guarantees, and how old configuration formats migrate.
-
-Resolve each open decision before implementing the part that depends on it; unrelated development can continue in parallel where safe.
+Resolver cada decisión antes de implementar la capacidad que afecta; mientras tanto, se puede avanzar con trabajo independiente.
