@@ -86,7 +86,31 @@ After acceptance, record who accepted it and when in the project's SDD artifact.
 
 Only after acceptance, create an ordered task breakdown. Each task should state one outcome, its scope, dependencies, criteria covered, and validation evidence. Keep tasks small enough for a focused PR. Record parallelism only when tasks do not contend for the same files, interfaces, or mutable data contract.
 
-### 9. Persist task handoff context
+### 9. Implement one bounded task at a time
+
+The implementation agent receives the accepted specification, one task from the breakdown, its dependencies, and the criteria it must satisfy. It keeps the change within that task's scope and reports files changed, decisions made, and any deviation from the accepted plan.
+
+If implementation reveals a material ambiguity, a changed business rule, or a need to expand scope, stop the affected work and bring the evidence and proposed adjustment to the task owner. Do not quietly change the specification or add unrelated improvements. The owner updates and re-accepts the affected scope before implementation continues. Independent tasks may proceed in parallel only when their interfaces and files do not conflict.
+
+### 10. Validate against the accepted criteria
+
+For each task, connect every applicable acceptance criterion to observable evidence. Use the repository's existing checks and add focused checks when the change needs them. Record commands and outcomes, and identify any criteria that could not be verified and why. A passing test suite alone does not prove a business rule or BI definition is correct; include domain or data evidence where relevant.
+
+When a check fails, report the failure and whether it blocks acceptance. Do not weaken a criterion or remove a check just to make the change pass; propose a specification adjustment to the task owner when evidence shows the original criterion is wrong or infeasible.
+
+### 11. Prepare a focused pull request
+
+Each PR should deliver one coherent outcome and be reviewable on its own. Prefer one task per PR; combine tasks only when they form one inseparable change. A PR description links the accepted specification and task, lists the acceptance criteria addressed, summarizes the implementation, and includes validation evidence, known limitations, and any proposed memory updates. It calls out schema, migration, permission, or data-definition changes explicitly.
+
+Keep unrelated formatting, cleanup, and speculative features out of the PR. If an accepted task cannot fit in a reviewable PR, split it into smaller tasks and revise dependencies before continuing.
+
+### 12. Review, integrate, and close the task
+
+The task owner or repository's designated reviewer checks behavior against the accepted specification, PR scope, validation evidence, and relevant business rules. Apply the repository's branch protection and review requirements; Orbit does not assume it may merge or bypass them. Resolve review findings in the same bounded scope or create a follow-up task.
+
+After merge or an explicitly recorded alternative disposition, update the task status and leave a compact handoff with the resulting commit/PR, completed criteria, outstanding follow-ups, and validation evidence. If a durable decision emerged, propose a memory change under the [memory contract](memory-contract.md), with source and status. A proposed memory update is not presented as current policy until its responsible owner accepts it.
+
+### 13. Persist task handoff context
 
 Before the session ends or hands work to another agent, provide a compact handoff with:
 
