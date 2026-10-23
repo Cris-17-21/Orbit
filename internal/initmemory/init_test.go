@@ -45,14 +45,89 @@ func TestFindGitRootRejectsDirectoryOutsideGit(t *testing.T) {
 	}
 }
 
+func TestBuildPlanIncludesDisabledAtomicMemoryConfig(t *testing.T) {
+	root := makeGitRepo(t)
+	plan, err := BuildPlan(root)
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+
+	var configEntry *Entry
+	for i := range plan.Entries {
+		if plan.Entries[i].Path == ".orbit/atomic-memory.json" {
+			configEntry = &plan.Entries[i]
+			break
+		}
+	}
+	if configEntry == nil {
+		t.Fatal("plan does not include .orbit/atomic-memory.json")
+	}
+	if configEntry.Status != StatusCreate {
+		t.Fatalf("Atomic Memory config status = %q, want %q", configEntry.Status, StatusCreate)
+	}
+	var config struct {
+		SchemaVersion int    `json:"schema_version"`
+		Mode          string `json:"mode"`
+		Backend       string `json:"backend"`
+	}
+	if err := json.Unmarshal(configEntry.content, &config); err != nil {
+		t.Fatalf("parse planned Atomic Memory config: %v", err)
+	}
+	if config.SchemaVersion != 1 || config.Mode != "disabled" || config.Backend != "" {
+		t.Fatalf("planned Atomic Memory config = %#v, want disabled defaults", config)
+	}
+	if strings.Contains(strings.ToLower(string(configEntry.content)), "api_key") || strings.Contains(string(configEntry.content), "user_id") {
+		t.Fatalf("planned Atomic Memory config contains identity or credentials: %s", configEntry.content)
+	}
+}
+
+func TestBuildPlanPreservesPreexistingAtomicMemoryConfig(t *testing.T) {
+	root := makeGitRepo(t)
+	path := filepath.Join(root, ".orbit", "atomic-memory.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	want := []byte("team-owned configuration\n")
+	if err := os.WriteFile(path, want, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := BuildPlan(root)
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+	var found bool
+	for _, entry := range plan.Entries {
+		if entry.Path == ".orbit/atomic-memory.json" {
+			found = true
+			if entry.Status != StatusConflict {
+				t.Errorf("preexisting config status = %q, want %q", entry.Status, StatusConflict)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("plan does not report the preexisting Atomic Memory config")
+	}
+	if _, err := Apply(plan); err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("preexisting config changed: got %q, want %q", got, want)
+	}
+}
+
 func TestApplyCreatesMemoryFilesAndOwnershipManifest(t *testing.T) {
 	root := makeGitRepo(t)
 	plan, err := BuildPlan(root)
 	if err != nil {
 		t.Fatalf("BuildPlan() error = %v", err)
 	}
-	if len(plan.Entries) != 3 {
-		t.Fatalf("BuildPlan() entries = %d, want 3", len(plan.Entries))
+	if len(plan.Entries) != 4 {
+		t.Fatalf("BuildPlan() entries = %d, want 4", len(plan.Entries))
 	}
 	for _, entry := range plan.Entries {
 		if entry.Status != StatusCreate {
@@ -64,8 +139,8 @@ func TestApplyCreatesMemoryFilesAndOwnershipManifest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
-	if len(result.Created) != 3 {
-		t.Fatalf("Apply() created = %d, want 3", len(result.Created))
+	if len(result.Created) != 4 {
+		t.Fatalf("Apply() created = %d, want 4", len(result.Created))
 	}
 
 	wantPaths := []string{
@@ -85,6 +160,14 @@ func TestApplyCreatesMemoryFilesAndOwnershipManifest(t *testing.T) {
 			t.Errorf("generated file %q does not link to the memory contract", name)
 		}
 	}
+	configPath := filepath.Join(root, ".orbit", "atomic-memory.json")
+	configBytes, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read generated Atomic Memory config: %v", err)
+	}
+	if !strings.Contains(string(configBytes), `"mode": "disabled"`) {
+		t.Errorf("generated Atomic Memory config is not disabled by default: %s", configBytes)
+	}
 
 	manifestPath := filepath.Join(root, ".orbit", "manifest.json")
 	manifestBytes, err := os.ReadFile(manifestPath)
@@ -98,13 +181,25 @@ func TestApplyCreatesMemoryFilesAndOwnershipManifest(t *testing.T) {
 	if manifest.SchemaVersion != ManifestSchemaVersion {
 		t.Errorf("manifest schema_version = %d, want %d", manifest.SchemaVersion, ManifestSchemaVersion)
 	}
-	if len(manifest.Resources) != 3 {
-		t.Errorf("manifest resources = %d, want 3", len(manifest.Resources))
+	if len(manifest.Resources) != 4 {
+		t.Errorf("manifest resources = %d, want 4", len(manifest.Resources))
 	}
 	for _, resource := range manifest.Resources {
 		if resource.InstalledDigest == "" {
 			t.Errorf("manifest resource %q has no installed digest", resource.Target)
 		}
+	}
+	var atomicMemoryOwned bool
+	for _, resource := range manifest.Resources {
+		if resource.Target == ".orbit/atomic-memory.json" {
+			atomicMemoryOwned = true
+			if resource.ResourceID != "project-atomic-memory-config" || resource.Kind != "file" || resource.Source != "orbit-init" {
+				t.Errorf("Atomic Memory manifest resource = %#v, want stable Orbit-owned file", resource)
+			}
+		}
+	}
+	if !atomicMemoryOwned {
+		t.Fatal("ownership manifest does not register the Atomic Memory config")
 	}
 }
 
@@ -134,8 +229,8 @@ func TestApplyPreservesPreexistingFilesAndCreatesOtherFiles(t *testing.T) {
 	if string(got) != string(original) {
 		t.Fatalf("preexisting file changed: got %q, want %q", got, original)
 	}
-	if len(result.Created) != 2 {
-		t.Errorf("Apply() created = %d, want 2", len(result.Created))
+	if len(result.Created) != 3 {
+		t.Errorf("Apply() created = %d, want 3", len(result.Created))
 	}
 	if len(result.Conflicts) != 1 || result.Conflicts[0].Path != "project-context/business-rules.md" {
 		t.Errorf("Apply() conflicts = %#v, want existing business-rules file", result.Conflicts)
@@ -179,8 +274,8 @@ func TestApplyPreservesUserEditsOnRepeat(t *testing.T) {
 	if string(got) != string(userContent) {
 		t.Fatalf("user edit changed: got %q, want %q", got, userContent)
 	}
-	if len(result.AlreadyPresent) != 2 || len(result.Conflicts) != 1 {
-		t.Errorf("repeat result = %#v, want 2 existing and 1 conflict", result)
+	if len(result.AlreadyPresent) != 3 || len(result.Conflicts) != 1 {
+		t.Errorf("repeat result = %#v, want 3 existing and 1 conflict", result)
 	}
 }
 
@@ -218,8 +313,8 @@ func TestApplyAddsMissingFileToExistingManifest(t *testing.T) {
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 		t.Fatal(err)
 	}
-	if len(manifest.Resources) != 3 {
-		t.Errorf("manifest resources = %d, want 3", len(manifest.Resources))
+	if len(manifest.Resources) != 4 {
+		t.Errorf("manifest resources = %d, want 4", len(manifest.Resources))
 	}
 }
 

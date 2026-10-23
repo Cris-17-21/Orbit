@@ -15,6 +15,16 @@ Esta nota registra qué puede asumir Orbit de manera segura sobre Atomic Memory 
 - La lista publicada de integraciones para agentes de programación documenta Codex y Claude Code, entre otros, pero no Antigravity. Podría funcionar una conexión MCP genérica si el host la admite, pero esa combinación no está verificada.
 - El resultado recuperado de Atomic Memory es contexto, no aprobación. Orbit debe aplicar sus propias reglas de estado, procedencia, alcance y responsable del [contrato de memoria](memory-contract.md).
 
+### Hallazgos de Hosted Cloud revisados el 2026-10-23
+
+- La consola organiza proyectos dentro de una organización; las memorias, claves, trazas y uso quedan asociados al proyecto Cloud.
+- Una clave `amc_…` da acceso al proyecto y se configura aparte de la sesión web de la consola. El endpoint de MCP documentado es `https://api.atomicstrata.ai`.
+- Las llamadas MCP usan las mismas rutas de memoria que la API. En los ejemplos, `user_id` viaja en la petición junto con la clave de proyecto. La documentación consultada no describe autenticación humana por petición ni control de membresía por colaborador para estas llamadas.
+- Por eso, una clave de proyecto más un `user_id` local permite identificar particiones, pero no demuestra autorización individual. Orbit no habilitará modo compartido basándose solo en esos valores.
+- La documentación del CLI `am` advierte defectos actuales de namespace/ingesta y de derivación de scope user; Orbit no usará `am integrate` como generador hasta que esas advertencias se resuelvan y se vuelvan a verificar.
+- La ruta que recomienda hoy Atomic Memory para Hosted Cloud es MCP manual, con `ATOMICMEMORY_SCOPE_USER` explícito por persona, `ATOMICMEMORY_SCOPE_LOCK=true` y sin `ATOMICMEMORY_SCOPE_NAMESPACE` por la asimetría documentada entre ingesta y búsqueda.
+- Claude Code permite expansión de variables en `.mcp.json`, aunque ciertas variables con nombres de credenciales se vacían intencionalmente. Validar el nombre de variable elegido y el flujo real antes de prometer configuración automática.
+
 ## Piloto recomendado
 
 Evaluar la colaboración en un espacio desechable de Open Source Core antes de elegir backend de producción o implementar una integración en el instalador. Usar datos sintéticos. Primero confirmar si dos colaboradores autenticados por separado acceden de forma segura al mismo espacio. No compartir credenciales personales ni simular acceso compartido asignando el mismo ID de usuario. Si no se puede autenticar y autorizar a cada colaborador, registrar el bloqueo y limitar el piloto local a una sola persona.
@@ -56,3 +66,9 @@ No prometer memoria compartida por proyecto en Hosted Cloud hasta corregir y ver
 - [CLI de Atomic Memory y notas actuales de Hosted Cloud](https://docs.atomicstrata.ai/cli)
 - [Guía de integración con Codex](https://docs.atomicstrata.ai/integrations/coding-agents/codex/local)
 - [Guía de integración con Claude Code](https://docs.atomicstrata.ai/integrations/coding-agents/claude-code/local)
+- [Consola Cloud](https://docs.atomicstrata.ai/cloud/console)
+- [Proyectos Cloud](https://docs.atomicstrata.ai/cloud/how-to/projects)
+- [Autenticación Cloud](https://docs.atomicstrata.ai/cloud/authentication)
+- [Claves API Cloud](https://docs.atomicstrata.ai/cloud/how-to/api-keys)
+- [Configuración MCP de Claude Code](https://code.claude.com/docs/en/mcp)
+- [CLI Atomic Memory: MCP manual y defectos de `am integrate`](https://docs.atomicstrata.ai/cli)
