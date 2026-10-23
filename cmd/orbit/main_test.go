@@ -29,11 +29,14 @@ func TestInitYesCreatesFilesAndReportsSummary(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("execute() = %d, stderr: %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "Creados: 3") {
+	if !strings.Contains(stdout.String(), "Creados: 4") {
 		t.Fatalf("summary does not report created files: %s", stdout.String())
 	}
 	if _, err := os.Stat(filepath.Join(root, "project-context", "business-rules.md")); err != nil {
 		t.Fatalf("memory file was not created: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".orbit", "atomic-memory.json")); err != nil {
+		t.Fatalf("Atomic Memory project config was not created: %v", err)
 	}
 }
 
@@ -99,7 +102,7 @@ func TestInitConfirmationAcceptsPlan(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	confirmed := false
 	prompt := func(plan initmemory.Plan) (bool, error) {
-		confirmed = len(plan.Entries) == 3
+		confirmed = len(plan.Entries) == 4
 		return true, nil
 	}
 	code := execute([]string{"init"}, root, &stdout, &stderr, true, prompt)
@@ -111,6 +114,21 @@ func TestInitConfirmationAcceptsPlan(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "project-context", "business-rules.md")); err != nil {
 		t.Fatalf("accepted plan was not applied: %v", err)
+	}
+}
+
+func TestInitPreviewIncludesAtomicMemoryConfigWithoutWritingIt(t *testing.T) {
+	root := createRepo(t)
+	var stdout, stderr bytes.Buffer
+	code := execute([]string{"init"}, root, &stdout, &stderr, false, nil)
+	if code == 0 {
+		t.Fatal("execute() succeeded without confirmation")
+	}
+	if !strings.Contains(stdout.String(), ".orbit/atomic-memory.json") {
+		t.Fatalf("preview omits Atomic Memory config: %s", stdout.String())
+	}
+	if _, err := os.Stat(filepath.Join(root, ".orbit", "atomic-memory.json")); !os.IsNotExist(err) {
+		t.Fatalf("preview wrote Atomic Memory config before confirmation: err = %v", err)
 	}
 }
 
