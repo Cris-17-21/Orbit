@@ -29,7 +29,7 @@ func TestInitYesCreatesFilesAndReportsSummary(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("execute() = %d, stderr: %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "Created 3") {
+	if !strings.Contains(stdout.String(), "Creados: 3") {
 		t.Fatalf("summary does not report created files: %s", stdout.String())
 	}
 	if _, err := os.Stat(filepath.Join(root, "project-context", "business-rules.md")); err != nil {
@@ -77,11 +77,20 @@ func TestInitCancellationDoesNotWriteFiles(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("execute() = %d, stderr: %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "Cancelled") {
+	if !strings.Contains(stdout.String(), "Cancelado") {
 		t.Fatalf("cancellation was not reported: %s", stdout.String())
 	}
 	if _, err := os.Stat(filepath.Join(root, "project-context")); !os.IsNotExist(err) {
 		t.Fatalf("memory files were written after cancellation: err = %v", err)
+	}
+}
+
+func TestConfirmationModelAcceptsSpanishYesKey(t *testing.T) {
+	model := confirmationModel{}
+	updated, _ := model.Update(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'s'}}))
+	model = updated.(confirmationModel)
+	if !model.done || !model.confirmed {
+		t.Fatal("pressing s did not confirm the plan")
 	}
 }
 

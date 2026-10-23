@@ -95,20 +95,20 @@ var memoryResources = []resourceDefinition{
 	{
 		id:       "project-memory-business-rules",
 		path:     "project-context/business-rules.md",
-		category: "Business rules",
-		text:     "Durable product behavior, constraints, and exceptions for this project.",
+		category: "Reglas de negocio",
+		text:     "Comportamientos duraderos del producto, restricciones y excepciones de este proyecto.",
 	},
 	{
 		id:       "project-memory-technical-decisions",
 		path:     "project-context/technical-decisions.md",
-		category: "Technical decisions",
-		text:     "Durable technical choices and the reasons behind them for this project.",
+		category: "Decisiones técnicas",
+		text:     "Decisiones técnicas duraderas del proyecto y sus motivos.",
 	},
 	{
 		id:       "project-memory-context",
 		path:     "project-context/project-context.md",
-		category: "Project context",
-		text:     "Stable background that helps collaborators understand this project.",
+		category: "Contexto del proyecto",
+		text:     "Información estable que ayuda a los colaboradores a entender este proyecto.",
 	},
 }
 
@@ -201,7 +201,7 @@ func BuildPlan(root string) (Plan, error) {
 		}
 		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
 			entry.Status = StatusConflict
-			entry.Reason = "target exists and is not a regular file"
+			entry.Reason = "la ruta ya existe y no es un archivo normal"
 			plan.Entries = append(plan.Entries, entry)
 			continue
 		}
@@ -213,10 +213,10 @@ func BuildPlan(root string) (Plan, error) {
 		owned, wasOwned := resources[resource.path]
 		if !wasOwned {
 			entry.Status = StatusConflict
-			entry.Reason = "file already exists and is not recorded as Orbit-managed"
+			entry.Reason = "el archivo ya existe y no figura como administrado por Orbit"
 		} else if digest(current) != owned.InstalledDigest {
 			entry.Status = StatusModified
-			entry.Reason = "Orbit-managed file has changed since initialization"
+			entry.Reason = "el archivo administrado por Orbit cambió desde la inicialización"
 		} else {
 			entry.Status = StatusPresent
 		}
@@ -275,7 +275,7 @@ func Apply(plan Plan) (Result, error) {
 		file, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 		if errors.Is(err, os.ErrExist) {
 			entry.Status = StatusConflict
-			entry.Reason = "target appeared after the preview; it was left unchanged"
+			entry.Reason = "la ruta apareció después de la vista previa; se dejó sin cambios"
 			result.Conflicts = append(result.Conflicts, entry)
 			continue
 		}
@@ -381,7 +381,7 @@ func Apply(plan Plan) (Result, error) {
 }
 
 func starterContent(category, description string) []byte {
-	return []byte(fmt.Sprintf("# %s\n\n%s\n\nUse the [Orbit memory contract](%s) for record fields and approval status.\n", category, description, contractURL))
+	return []byte(fmt.Sprintf("# %s\n\n%s\n\nConsulta el [contrato de memoria de Orbit](%s) para ver los campos de registro y los estados de aprobación.\n", category, description, contractURL))
 }
 
 func newManifest(root string) Manifest {

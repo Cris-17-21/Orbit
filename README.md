@@ -1,11 +1,11 @@
 # Orbit
 
-Orbit is a collaborative, specification-driven workflow toolkit for AI coding agents.
+Orbit es un conjunto de herramientas colaborativas para trabajar con agentes de programación mediante desarrollo guiado por especificaciones (SDD).
 
-The project is being designed and built incrementally. Its planned direction includes a Go CLI, shared SDD workflows and skills, adapters for Codex, Claude Code, and Antigravity, focused subagent roles, Markdown project memory, and optional Atomic Memory integration.
+El proyecto se diseña y construye por etapas. La dirección prevista incluye un CLI en Go, flujos y skills compartidos para SDD, adaptadores para Codex, Claude Code y Antigravity, roles especializados de subagentes, memoria de proyecto en Markdown e integración opcional con Atomic Memory.
 
-See the [product specification](docs/product-spec.md) for Orbit's consolidated design, [task orchestration](docs/task-orchestration.md) for the proposed workflow, and [memory contract](docs/memory-contract.md) for the initial format for durable project context.
+Consulta la [especificación del producto](docs/product-spec.md) para conocer el diseño consolidado de Orbit, la [orquestación de tareas](docs/task-orchestration.md) para el flujo propuesto y el [contrato de memoria](docs/memory-contract.md) para el formato inicial del contexto persistente del proyecto.
 
-## Build the CLI from source
+## Compilar el CLI desde el código fuente
 
-Building from source requires Go 1.24 or newer. Run `go test ./...` and `go build -o <output-path>/orbit ./cmd/orbit`. From a target Git project, run the built `orbit` executable with `init` to review the files it plans to create. Add `--yes` only when you want to apply that plan without an interactive confirmation.
+Para compilar desde el código fuente se requiere Go 1.24 o posterior. Ejecuta `go test ./...` y `go build -o <ruta-de-salida>/orbit ./cmd/orbit`. Desde un proyecto Git, ejecuta `orbit init` para revisar los archivos que se crearán. Añade `--yes` solo si quieres aplicar el plan sin una confirmación interactiva.

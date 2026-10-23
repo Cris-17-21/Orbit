@@ -18,7 +18,7 @@ type confirmationFunc func(initmemory.Plan) (bool, error)
 func main() {
 	root, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Orbit: could not determine the current directory:", err)
+		fmt.Fprintln(os.Stderr, "Orbit: no se pudo determinar el directorio actual:", err)
 		os.Exit(1)
 	}
 
@@ -41,7 +41,7 @@ func execute(args []string, workingDirectory string, stdout, stderr io.Writer, i
 		printHelp(stdout)
 		return 0
 	default:
-		fmt.Fprintf(stderr, "Orbit: unknown command %q\n\n", args[0])
+		fmt.Fprintf(stderr, "Orbit: comando desconocido %q\n\n", args[0])
 		printHelp(stderr)
 		return 2
 	}
@@ -50,11 +50,11 @@ func execute(args []string, workingDirectory string, stdout, stderr io.Writer, i
 func runInit(args []string, workingDirectory string, stdout, stderr io.Writer, interactive bool, confirm confirmationFunc) int {
 	flags := flag.NewFlagSet("orbit init", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	yes := flags.Bool("yes", false, "apply the displayed plan without an interactive prompt")
+	yes := flags.Bool("yes", false, "aplica el plan mostrado sin pedir confirmación interactiva")
 	flags.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: orbit init [--yes]")
-		fmt.Fprintln(stderr, "Initialize the project's Markdown memory files.")
-		fmt.Fprintln(stderr, "  --yes  explicitly confirm the plan in a non-interactive environment")
+		fmt.Fprintln(stderr, "Uso: orbit init [--yes]")
+		fmt.Fprintln(stderr, "Inicializa los archivos de memoria Markdown del proyecto.")
+		fmt.Fprintln(stderr, "  --yes  confirma explícitamente el plan en un entorno no interactivo")
 	}
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -64,7 +64,7 @@ func runInit(args []string, workingDirectory string, stdout, stderr io.Writer, i
 		return 2
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "Orbit: unexpected argument %q\n", flags.Arg(0))
+		fmt.Fprintf(stderr, "Orbit: argumento inesperado %q\n", flags.Arg(0))
 		flags.Usage()
 		return 2
 	}
@@ -83,20 +83,20 @@ func runInit(args []string, workingDirectory string, stdout, stderr io.Writer, i
 
 	if plan.CreateCount() > 0 && !*yes {
 		if !interactive {
-			fmt.Fprintln(stderr, "Orbit: this command needs confirmation; run it in a terminal or pass --yes to apply the displayed plan")
+			fmt.Fprintln(stderr, "Orbit: este comando requiere confirmación; ejecútalo en una terminal o pasa --yes para aplicar el plan mostrado")
 			return 2
 		}
 		if confirm == nil {
-			fmt.Fprintln(stderr, "Orbit: interactive confirmation is unavailable")
+			fmt.Fprintln(stderr, "Orbit: la confirmación interactiva no está disponible")
 			return 2
 		}
 		accepted, err := confirm(plan)
 		if err != nil {
-			fmt.Fprintln(stderr, "Orbit: confirmation failed:", err)
+			fmt.Fprintln(stderr, "Orbit: falló la confirmación:", err)
 			return 1
 		}
 		if !accepted {
-			fmt.Fprintln(stdout, "Cancelled. No files were written.")
+			fmt.Fprintln(stdout, "Cancelado. No se escribió ningún archivo.")
 			return 0
 		}
 	}
@@ -114,35 +114,35 @@ func runInit(args []string, workingDirectory string, stdout, stderr io.Writer, i
 }
 
 func printHelp(out io.Writer) {
-	fmt.Fprintln(out, "Orbit — a collaborative, specification-driven workflow for AI coding agents")
+	fmt.Fprintln(out, "Orbit — flujo colaborativo guiado por especificaciones para agentes de programación con IA")
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Usage: orbit <command> [options]")
+	fmt.Fprintln(out, "Uso: orbit <comando> [opciones]")
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Commands:")
-	fmt.Fprintln(out, "  init       Initialize project Markdown memory")
-	fmt.Fprintln(out, "  help       Show this help")
+	fmt.Fprintln(out, "Comandos:")
+	fmt.Fprintln(out, "  init       Inicializa la memoria Markdown del proyecto")
+	fmt.Fprintln(out, "  help       Muestra esta ayuda")
 }
 
 func printPlan(out io.Writer, plan initmemory.Plan) {
-	fmt.Fprintf(out, "Orbit will prepare project memory in %s\n", plan.Root)
+	fmt.Fprintf(out, "Orbit preparará la memoria del proyecto en %s\n", plan.Root)
 	for _, entry := range plan.Entries {
 		switch entry.Status {
 		case initmemory.StatusCreate:
-			fmt.Fprintf(out, "  + create         %s\n", entry.Path)
+			fmt.Fprintf(out, "  + crear          %s\n", entry.Path)
 		case initmemory.StatusPresent:
-			fmt.Fprintf(out, "  = already present %s\n", entry.Path)
+			fmt.Fprintf(out, "  = ya existe      %s\n", entry.Path)
 		case initmemory.StatusConflict:
-			fmt.Fprintf(out, "  ! conflict       %s — %s\n", entry.Path, entry.Reason)
+			fmt.Fprintf(out, "  ! conflicto      %s — %s\n", entry.Path, entry.Reason)
 		case initmemory.StatusModified:
-			fmt.Fprintf(out, "  ! modified       %s — %s\n", entry.Path, entry.Reason)
+			fmt.Fprintf(out, "  ! modificado     %s — %s\n", entry.Path, entry.Reason)
 		}
 	}
 }
 
 func printSummary(out io.Writer, result initmemory.Result) {
-	fmt.Fprintf(out, "\nCreated %d file(s); %d already present; %d conflict(s).\n", len(result.Created), len(result.AlreadyPresent), len(result.Conflicts))
+	fmt.Fprintf(out, "\nCreados: %d archivo(s); ya existentes: %d; conflictos: %d.\n", len(result.Created), len(result.AlreadyPresent), len(result.Conflicts))
 	for _, entry := range result.Conflicts {
-		fmt.Fprintf(out, "  Review %s: %s\n", entry.Path, entry.Reason)
+		fmt.Fprintf(out, "  Revisa %s: %s\n", entry.Path, entry.Reason)
 	}
 }
 
@@ -166,7 +166,7 @@ func (m confirmationModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.selected = 0
 	case "down", "j":
 		m.selected = 1
-	case "y":
+	case "y", "s":
 		m.confirmed = true
 		m.done = true
 		return m, tea.Quit
@@ -183,16 +183,16 @@ func (m confirmationModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m confirmationModel) View() string {
 	var view strings.Builder
-	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86")).Render("Orbit · Initialize project memory")
+	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86")).Render("Orbit · Inicializar memoria del proyecto")
 	view.WriteString(header + "\n\n")
-	view.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("The following files will be created:") + "\n")
+	view.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("Se crearán los siguientes archivos:") + "\n")
 	for _, entry := range m.plan.Entries {
 		if entry.Status == initmemory.StatusCreate {
 			fmt.Fprintf(&view, "  %s %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render("+"), entry.Path)
 		}
 	}
-	view.WriteString("\nExisting files will be preserved. Continue?\n\n")
-	choices := []string{"No, cancel", "Yes, create the listed files"}
+	view.WriteString("\nSe conservarán los archivos existentes. ¿Continuar?\n\n")
+	choices := []string{"No, cancelar", "Sí, crear los archivos indicados"}
 	for index, choice := range choices {
 		marker := " "
 		styledChoice := choice
@@ -202,7 +202,7 @@ func (m confirmationModel) View() string {
 		}
 		fmt.Fprintf(&view, "%s %s\n", marker, styledChoice)
 	}
-	view.WriteString("\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("Use ↑/↓ and Enter, or press y/n.") + "\n")
+	view.WriteString("\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render("Usa ↑/↓ y Enter, o pulsa s/n.") + "\n")
 	return view.String()
 }
 
@@ -214,7 +214,7 @@ func confirmPlan(plan initmemory.Plan, input io.Reader, output io.Writer) (bool,
 	}
 	confirmation, ok := finalModel.(confirmationModel)
 	if !ok || !confirmation.done {
-		return false, errors.New("confirmation ended without a decision")
+		return false, errors.New("la confirmación terminó sin una decisión")
 	}
 	return confirmation.confirmed, nil
 }
