@@ -1,48 +1,48 @@
-# Pull request: <short change title>
+# Pull request: <título breve del cambio>
 
-## Linked work
+## Trabajo relacionado
 
-- **Specification:** [`spec.md`](specs/invitation-conversion/spec.md)
-- **Task:** <task ID and link to the task in `tasks.md`>
-- **Owner:** <person responsible for this change>
+- **Especificación:** [spec.md](specs/invitation-conversion/spec.md)
+- **Tarea:** <ID de tarea y enlace a tasks.md>
+- **Responsable:** <persona a cargo del cambio>
 
-## Scope
+## Alcance
 
-### Included
+### Incluye
 
-- <specific behavior or files this PR changes>
+- <comportamiento o archivos específicos que modifica este PR>
 
-### Excluded
+### Excluye
 
-- <related work intentionally left for another PR>
+- <trabajo relacionado que queda para otro PR>
 
-## Acceptance criteria covered
+## Criterios de aceptación cubiertos
 
-List the specification criteria this PR addresses and how each was met.
+Indica qué criterios de la especificación aborda este PR y cómo se cumplieron.
 
-| Criterion | Result | Evidence |
+| Criterio | Resultado | Evidencia |
 | --- | --- | --- |
-| <criterion ID or number> | <met / not met / not applicable> | <test, query, screenshot, or explanation> |
+| <ID o número> | <cumplido / no cumplido / no aplica> | <prueba, consulta, captura o explicación> |
 
-## Validation evidence
+## Evidencia de validación
 
-- **Commands or checks run:** <commands and outcomes>
-- **Data or scenarios reviewed:** <relevant cases>
-- **UI preview:** <screenshot or link, if applicable>
+- **Comandos o comprobaciones ejecutadas:** <comandos y resultados>
+- **Datos o escenarios revisados:** <casos pertinentes>
+- **Vista previa de UI:** <captura o enlace, si aplica>
 
-## Memory changes
+## Cambios de memoria
 
-- <list proposed changes to business rules, technical decisions, or project context; link the files>
-- <write “None” if no shared memory changes are proposed>
+- <cambios propuestos en reglas, decisiones técnicas o contexto; enlazar archivos>
+- <escribir “Ninguno” si no se propone cambio de memoria compartida>
 
-## Reviewer notes
+## Notas para revisión
 
-- <risks, limitations, migration notes, or follow-up work>
+- <riesgos, limitaciones, notas de migración o trabajo posterior>
 
-## Ready for review checklist
+## Lista antes de revisión
 
-- [ ] This PR has one clear goal and stays within the linked task's scope.
-- [ ] The implementation follows the accepted specification and relevant current business rules.
-- [ ] Validation evidence is included for the acceptance criteria covered here.
-- [ ] Any changed shared memory is proposed as a reviewable diff with source and status.
-- [ ] Remaining work is recorded in another task or PR rather than silently expanding this one.
+- [ ] El PR tiene un objetivo claro y respeta el alcance de la tarea asociada.
+- [ ] La implementación sigue la especificación aceptada y las reglas vigentes pertinentes.
+- [ ] La evidencia de validación cubre los criterios de aceptación abordados.
+- [ ] Los cambios de memoria compartida se presentan con fuente y estado para revisión.
+- [ ] El trabajo pendiente está registrado en otra tarea o PR, sin ampliar silenciosamente este cambio.

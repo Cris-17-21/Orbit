@@ -1,117 +1,107 @@
-# Orbit memory contract
+# Contrato de memoria de Orbit
 
-Orbit stores durable project context as Markdown files committed with the project. The files are the reviewable source of truth when Atomic Memory is not configured. Atomic Memory is optional and is not required to use this format.
+Orbit guarda el contexto duradero del proyecto en archivos Markdown versionados junto con el código. Si Atomic Memory no está configurado, estos archivos son la fuente compartida revisable. Atomic Memory es opcional y no se requiere para usar este formato.
 
-## Memory boundaries and scopes
+## Límites y alcances de memoria
 
-Orbit separates three kinds of memory:
+Orbit distingue tres tipos de memoria:
 
-- **Personal agent memory** belongs to one person's agent or account. It may contain that person's working preferences, but it is never shared or copied into a project automatically.
-- **Project memory** belongs to the repository and is the default shared record. It is reviewable in Git and works without an external memory service.
-- **Team/workspace memory** is optional shared context held in Atomic Memory when the team has configured an appropriate shared scope. Its audience and access depend on the configured Atomic Memory project/workspace permissions.
+- **Memoria personal del agente:** pertenece a la cuenta o agente de una persona. Puede guardar sus preferencias de trabajo, pero no se comparte ni copia automáticamente al proyecto.
+- **Memoria del proyecto:** pertenece al repositorio y es el registro compartido predeterminado. Se revisa en Git y no necesita un servicio externo.
+- **Memoria del equipo o espacio de trabajo:** contexto compartido opcional almacenado en Atomic Memory cuando se ha configurado un alcance adecuado. La audiencia y los permisos dependen de ese proyecto o espacio.
 
-The adapter must identify which scope it is querying and report when it cannot verify the audience or access mode. A private/personal connection is not treated as team memory. Orbit must not copy records between scopes automatically. A person can propose an explicit promotion from personal context to project/team memory, with source and owner recorded, but the responsible person must confirm it.
+El adaptador identifica el alcance consultado e informa si no puede verificar quién tiene acceso o qué modalidad de acceso está activa. Una conexión personal no equivale a memoria del equipo. Orbit no copia registros entre alcances automáticamente. Se puede proponer explícitamente promover contexto personal a memoria de proyecto o equipo; debe conservarse la fuente y el responsable, y una persona responsable debe confirmarlo.
 
-Project Markdown remains the baseline source of truth. Atomic Memory is an optional retrieval and persistence backend, not an implicit authority. A hybrid sync mode is deferred until conflict resolution, identity mapping, and deletion behavior are designed. If both sources are present and disagree, surface the conflict to the task owner; do not choose by timestamp or silently overwrite either record.
+Markdown del proyecto sigue siendo la fuente de verdad base. Atomic Memory es un mecanismo opcional de recuperación y persistencia, no una autoridad implícita. El modo de sincronización híbrida se posterga hasta diseñar resolución de conflictos, identidad y borrado. Si las fuentes discrepan, se presenta el conflicto a la persona responsable; no se elige una por fecha ni se sobrescribe la otra en silencio.
 
-## Memory categories
+## Categorías
 
-Keep durable knowledge in one of these categories:
+- **Reglas de negocio:** comportamiento del producto, restricciones y excepciones.
+- **Decisiones técnicas:** dirección técnica elegida y su justificación.
+- **Contexto del proyecto:** información estable para entender el proyecto.
 
-- **Business rules** describe product behavior, constraints, and exceptions.
-- **Technical decisions** record a chosen technical direction and its rationale.
-- **Project context** gives stable background that helps collaborators understand the project.
+Las especificaciones y planes de tareas propios de un cambio van en sus artefactos SDD. Este formato de memoria no reemplaza una especificación aceptada.
 
-Keep change-specific specifications and task plans in their own SDD artifacts. Do not use this memory format as a replacement for an accepted specification.
+## Campos obligatorios de un registro
 
-## Required record fields
-
-Each record must identify:
-
-| Field | Meaning |
+| Campo | Significado |
 | --- | --- |
-| `type` | `business-rule`, `technical-decision`, or `project-context` |
-| `id` | Stable identifier within its category, such as `BR-001` or `ADR-001` |
-| `title` | Short human-readable name |
-| `content` | The rule, decision, or context to preserve |
-| `scope` | Project, product area, service, or data domain where it applies |
-| `status` | `proposed`, `current`, or `superseded` |
-| `created` | Date first recorded, in ISO `YYYY-MM-DD` format |
-| `updated` | Date last substantively reviewed, in ISO `YYYY-MM-DD` format |
-| `source` | Link or reference to the discussion, accepted specification, PR, or other evidence |
-| `owner` | Person responsible for maintaining the record |
-| `review_after` | Optional date after which the record should be rechecked before relying on it |
+| type | business-rule, technical-decision o project-context |
+| id | Identificador estable de la categoría, como BR-001 o ADR-001 |
+| title | Nombre breve y legible |
+| content | Regla, decisión o contexto que se conservará |
+| scope | Proyecto, área de producto, servicio o dominio de datos al que aplica |
+| status | proposed, current o superseded |
+| created | Fecha de primer registro, formato ISO AAAA-MM-DD |
+| updated | Fecha de última revisión sustantiva, formato ISO AAAA-MM-DD |
+| source | Enlace o referencia a conversación, especificación aceptada, PR u otra evidencia |
+| owner | Persona responsable de mantener el registro |
+| review_after | Fecha opcional para volver a revisar antes de confiar en el registro |
 
-For a record with `status: current`, include `approved_by` and `approved_at` to identify when it became accepted. A proposed record is context to consider, not an active rule. A superseded record must point to its replacement using `superseded_by` when one exists. Withdraw a record by changing its status to `superseded` with an explanatory source; preserve its history rather than silently deleting it.
+Un registro current también incluye approved_by y approved_at. Un registro proposed aporta contexto, pero no es una regla activa. Un registro superseded enlaza a su reemplazo mediante superseded_by cuando exista. Para retirar un registro, se cambia su estado a superseded con una fuente explicativa y se conserva el historial.
 
-`review_after` is a reminder, not an automatic expiry. Once that date has passed, Orbit must label the item **review due** and ask the task owner to confirm it before using it as a controlling business rule. Orbit must not change its status or approve a replacement automatically. A missing `review_after` does not prove that a record is fresh: check its source and scope, and ask when repository behavior, data definitions, or other current records conflict with it.
+review_after es un recordatorio, no un vencimiento automático. Cuando pasa esa fecha, Orbit marca el registro como pendiente de revisión y pide confirmación antes de usarlo como regla de negocio que controle el trabajo. Orbit no cambia el estado ni aprueba reemplazos automáticamente. La ausencia de review_after no garantiza que un registro esté vigente: se comprueba su fuente y alcance, y se pregunta cuando el comportamiento del repositorio, las definiciones de datos u otros registros vigentes entren en conflicto.
 
-## Approval and change lifecycle
+## Ciclo de aprobación y cambio
 
-1. **Capture:** record a candidate as `proposed`, with its source, scope, and accountable owner. Ideas from conversation, agent inference, or Atomic Memory retrieval begin as proposals unless an explicit approval is recorded.
-2. **Review:** the responsible owner checks wording, scope, evidence, and affected work. For a business rule, this is the product/domain owner or a person they delegated; for a technical decision, the designated technical owner; for project context, the contributor responsible for its accuracy.
-3. **Accept:** promote the proposal to `current` only after that responsible person confirms it. Record `approved_by` and `approved_at`. A task owner can accept a task-scoped memory change as part of their specification review. A team-wide policy follows the team's separately agreed decision process; Orbit does not require every collaborator to approve every task.
-4. **Revise:** create or edit a proposal that cites the current record. When accepted, mark the prior record `superseded` and link both records. The change should be reviewable in the project PR or in an Atomic Memory audit mechanism when that backend provides one.
-5. **Recheck:** if evidence conflicts, required review is due, ownership is unknown, or scope is unclear, mark the item as needing human review in the task context. Do not treat it as controlling until resolved.
+1. **Registrar:** anotar una posibilidad como proposed, con fuente, alcance y responsable. Ideas de conversaciones, inferencias de agentes y recuerdos de Atomic Memory empiezan como propuestas salvo que exista aprobación explícita.
+2. **Revisar:** la persona responsable valida redacción, alcance, evidencia y trabajo afectado. La regla de negocio corresponde a la persona responsable del producto o dominio, o a quien haya delegado; la decisión técnica, a su responsable técnico; el contexto, a quien responde por su exactitud.
+3. **Aceptar:** cambiar a current solo tras la confirmación de la persona responsable. Registrar approved_by y approved_at. Quien acepta una especificación puede aceptar memoria del alcance de su tarea. Las políticas de todo el equipo siguen el proceso que el equipo haya acordado; Orbit no requiere aprobación unánime de cada tarea.
+4. **Revisar un cambio:** crear o editar una propuesta que cite el registro vigente. Al aceptarla, marcar el registro anterior como superseded y enlazar ambos. El cambio debe quedar revisable en el PR o en un mecanismo de auditoría de Atomic Memory cuando exista.
+5. **Volver a comprobar:** si hay evidencia contradictoria, revisión pendiente, responsable desconocido o alcance ambiguo, marcarlo para revisión humana en el contexto de la tarea. No tratarlo como regla activa hasta resolverlo.
 
-Atomic Memory may represent approval, provenance, scope, and history differently from the Markdown template. Its adapter must map these fields where supported and report any guarantees it cannot provide. Orbit must not claim an item is approved, shared, audited, or current solely because it was retrieved from Atomic Memory.
+Atomic Memory puede representar aprobación, procedencia, alcance e historial de otra manera. El adaptador mapea estos campos cuando sea posible e informa qué garantías no puede ofrecer. No se debe afirmar que un elemento está aprobado, compartido, auditado o vigente solo porque fue recuperado de Atomic Memory.
 
-## Agent behavior
+## Comportamiento del agente
 
-1. Read records relevant to the current task and cite their IDs when using them in a specification or implementation plan.
-2. Treat `current` as the record's declared state, but check its source and scope. Ask the task owner when the source is missing, the scope does not fit, or another current record conflicts.
-3. Never promote a proposal or memory recall to `current` without confirmation from the responsible person.
-4. Preserve history by marking replaced records `superseded` and linking the replacement; do not silently rewrite a decision that has already guided work.
-5. Propose memory changes as reviewable Markdown diffs. The task owner can approve task-level records; changes to team-wide policy follow the team's agreed decision process.
-6. Keep personal agent memory separate from these project files. Do not copy personal preferences or private information into shared project memory without explicit direction.
+1. Lee registros pertinentes y cita sus IDs al usarlos en una especificación o plan.
+2. Considera current el estado declarado, pero comprueba fuente y alcance. Pregunta a la persona responsable si falta la fuente, el alcance no corresponde o hay conflicto.
+3. Nunca promueve una propuesta o recuerdo a current sin confirmación de la persona responsable.
+4. Conserva el historial: marca como superseded los registros reemplazados y enlaza el reemplazo; no reescribe silenciosamente una decisión que ya guio trabajo.
+5. Propone cambios de memoria como diferencias Markdown revisables. La persona responsable puede aceptar registros de su tarea; los cambios de política de equipo siguen el proceso acordado.
+6. Mantiene separada la memoria personal. No copia preferencias personales ni información privada a la memoria compartida sin una instrucción explícita.
 
-## File organization
+## Organización de archivos
 
-Store records in category-specific files so collaborators can find and review them:
+Guarda los registros por categoría:
 
-```text
-project-context/
-  business-rules.md
-  technical-decisions.md
-  project-context.md
-```
+    project-context/
+      business-rules.md
+      technical-decisions.md
+      project-context.md
 
-Each file may contain multiple records. Keep each record self-contained, and use the required fields below its heading.
+Cada archivo puede contener varios registros. Mantén cada uno autocontenido y coloca los campos obligatorios debajo de su encabezado.
 
-## Record template
+## Plantilla de registro
 
-```markdown
-### <ID>: <Title>
+    ### <ID>: <Título>
 
-- type: <business-rule | technical-decision | project-context>
-- scope: <area this applies to>
-- status: <proposed | current | superseded>
-- created: <YYYY-MM-DD>
-- updated: <YYYY-MM-DD>
-- source: <link or evidence reference>
-- owner: <responsible person>
-- approved_by: <required when current>
-- approved_at: <required when current; YYYY-MM-DD>
-- review_after: <optional; YYYY-MM-DD>
-- superseded_by: <replacement ID, when applicable>
+    - type: <business-rule | technical-decision | project-context>
+    - scope: <área a la que aplica>
+    - status: <proposed | current | superseded>
+    - created: <AAAA-MM-DD>
+    - updated: <AAAA-MM-DD>
+    - source: <enlace o referencia de evidencia>
+    - owner: <persona responsable>
+    - approved_by: <obligatorio cuando el estado es current>
+    - approved_at: <obligatorio cuando el estado es current; AAAA-MM-DD>
+    - review_after: <opcional; AAAA-MM-DD>
+    - superseded_by: <ID de reemplazo, si corresponde>
 
-<Content>
-```
+    <Contenido>
 
-## Example: business rule
+## Ejemplo: regla de negocio
 
-```markdown
-### BR-001: Invitation conversion definition
+    ### BR-001: Definición de conversión de invitaciones
 
-- type: business-rule
-- scope: workspace invitations and activation reporting
-- status: proposed
-- created: 2026-10-22
-- updated: 2026-10-22
-- source: illustrative Orbit example; not approved for a real product
-- owner: product owner
+    - type: business-rule
+    - scope: invitaciones de espacio de trabajo e informes de activación
+    - status: proposed
+    - created: 2026-10-22
+    - updated: 2026-10-22
+    - source: ejemplo ilustrativo de Orbit; no aprobado para un producto real
+    - owner: responsable de producto
 
-An invitation counts as converted only after the invitee accepts it and completes account registration. Sending or opening an invitation does not count as conversion.
-```
+    Una invitación se considera convertida solo después de que la persona invitada la acepta y completa el registro de cuenta. Enviar o abrir una invitación no cuenta como conversión.
 
-This example remains `proposed` because it illustrates the format; it is not a confirmed rule for a real product. A real project must replace the source and responsible-person values with its own evidence and owners.
+Este ejemplo sigue en estado proposed: ilustra el formato, pero no es una regla confirmada para un producto real. El proyecto debe sustituir las fuentes y responsables ilustrativos por su propia evidencia y personas responsables.

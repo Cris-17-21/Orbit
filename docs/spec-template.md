@@ -1,84 +1,84 @@
-# Specification: <short outcome>
+# Especificación: <resultado breve>
 
-- status: draft
-- task owner: <person responsible for this task>
-- created: <YYYY-MM-DD>
-- accepted by: <person who accepts this specification; fill after acceptance>
-- accepted at: <YYYY-MM-DD; fill after acceptance>
+- estado: borrador
+- responsable de la tarea: <persona responsable>
+- creada: <AAAA-MM-DD>
+- aceptada por: <persona que acepta; completar después de la aceptación>
+- aceptada el: <AAAA-MM-DD; completar después de la aceptación>
 
-## Need and outcome
+## Necesidad y resultado
 
-<Who needs what, why, and what observable outcome should change?>
+<¿Quién necesita qué, por qué y qué resultado observable debe cambiar?>
 
-## Scope
+## Alcance
 
-### Included
+### Incluye
 
-- <one bounded outcome>
+- <un resultado acotado>
 
-### Excluded
+### Excluye
 
-- <related work intentionally outside this specification>
+- <trabajo relacionado que queda intencionalmente fuera>
 
-## Context and business rules
+## Contexto y reglas de negocio
 
-| Reference | Status | Scope | Relevance to this task |
+| Referencia | Estado | Alcance | Relevancia para esta tarea |
 | --- | --- | --- | --- |
-| <record ID and source, or `none found`> | <current / proposed / review due / superseded> | <scope> | <how it affects the task> |
+| <ID de registro y fuente, o “no se encontró”> | <vigente / propuesto / revisión pendiente / reemplazado> | <alcance> | <cómo afecta la tarea> |
 
-Do not treat a proposal, superseded record, or unverified memory as an accepted business rule. Record conflicts and missing sources under Open questions.
+No trates propuestas, registros reemplazados o memorias sin verificar como reglas de negocio aceptadas. Registra conflictos y fuentes faltantes en Preguntas abiertas.
 
-## Assumptions and decisions
+## Supuestos y decisiones
 
-### Confirmed
+### Confirmados
 
-- <confirmed fact or accepted decision, with its source>
+- <hecho o decisión aceptada y su fuente>
 
-### Assumptions to verify
+### Supuestos por verificar
 
-- <assumption, how it will be checked, and who can resolve it>
+- <supuesto, cómo verificarlo y quién puede resolverlo>
 
-## User scenarios
+## Escenarios de usuario
 
-### Scenario: <name>
+### Escenario: <nombre>
 
-- Given <starting context>
-- When <user action or event>
-- Then <observable outcome>
+- Dado <contexto inicial>
+- Cuando <acción o evento>
+- Entonces <resultado observable>
 
-## Acceptance criteria
+## Criterios de aceptación
 
-- [ ] **AC-1:** <observable result and how it can be checked>
-- [ ] **AC-2:** <observable result and how it can be checked>
+- [ ] **AC-1:** <resultado observable y cómo comprobarlo>
+- [ ] **AC-2:** <resultado observable y cómo comprobarlo>
 
-Include relevant behavior, failure cases, permission boundaries, and data/BI definitions. Avoid implementation details unless they are requirements.
+Incluye comportamientos relevantes, casos de error, límites de permisos y definiciones de datos/BI. Evita detalles de implementación salvo que sean requisitos.
 
-## Dependencies and risks
+## Dependencias y riesgos
 
-- <dependency or risk, its impact, and any mitigation>
+- <dependencia o riesgo, impacto y mitigación>
 
-## Open questions
+## Preguntas abiertas
 
-- <question that could change scope, business behavior, data meaning, or acceptance; owner if known>
+- <pregunta que podría cambiar alcance, comportamiento, significado de datos o aceptación; responsable si se conoce>
 
-## Validation evidence
+## Evidencia de validación
 
-| Acceptance criterion | Check or evidence | Result |
+| Criterio | Comprobación o evidencia | Resultado |
 | --- | --- | --- |
-| AC-1 | <existing check, focused check, domain review, or other evidence> | <pending> |
+| AC-1 | <comprobación existente, prueba enfocada, revisión de dominio u otra evidencia> | <pendiente> |
 
-## Proposed task and PR boundaries
+## Límites propuestos de tarea y PR
 
-| Task | Outcome | Criteria covered | Dependencies | PR boundary |
+| Tarea | Resultado | Criterios cubiertos | Dependencias | Límite del PR |
 | --- | --- | --- | --- | --- |
-| T-1 | <one reviewable outcome> | <AC-1> | <none or task IDs> | <one coherent PR> |
+| T-1 | <resultado revisable> | <AC-1> | <ninguna o IDs de tareas> | <un PR coherente> |
 
-## Acceptance
+## Aceptación
 
-The task owner accepts this specification and authorizes implementation within its scope:
+La persona responsable acepta esta especificación y autoriza la implementación dentro de su alcance:
 
-- accepted by: <name>
-- accepted at: <YYYY-MM-DD>
-- notes or requested changes: <text or none>
+- aceptada por: <nombre>
+- aceptada el: <AAAA-MM-DD>
+- notas o cambios solicitados: <texto o ninguno>
 
-Implementation begins only after the task owner records acceptance. A material change to scope, business rules, or acceptance criteria returns to the owner for review.
+La implementación empieza solo después de registrar la aceptación. Un cambio material de alcance, reglas de negocio o criterios vuelve a revisión de la persona responsable.
