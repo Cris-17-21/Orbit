@@ -44,6 +44,58 @@ func TestInitYesCreatesFilesAndReportsSummary(t *testing.T) {
 	}
 }
 
+func TestMemoryStatusReportsMarkdownOnlyWhenAtomicMemoryIsNotConfigured(t *testing.T) {
+	root := createRepo(t)
+	var stdout, stderr bytes.Buffer
+	code := execute([]string{"init", "--yes"}, root, &stdout, &stderr, false, nil)
+	if code != 0 {
+		t.Fatalf("initialize project: code=%d stderr=%s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	code = execute([]string{"memory", "status"}, root, &stdout, &stderr, false, nil)
+	if code != 0 {
+		t.Fatalf("status: code=%d stderr=%s", code, stderr.String())
+	}
+	for _, expected := range []string{"Modalidad: desactivada", "Codex: no configurado", "Claude Code: no configurado", "Conectividad: no verificada", "Memoria compartida: no verificada"} {
+		if !strings.Contains(stdout.String(), expected) {
+			t.Fatalf("status omitted %q: %s", expected, stdout.String())
+		}
+	}
+}
+
+func TestMemoryStatusReportsConfiguredHostsWithoutLeakingSecrets(t *testing.T) {
+	root := createRepo(t)
+	var stdout, stderr bytes.Buffer
+	if code := execute([]string{"init", "--yes"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("initialize project: code=%d stderr=%s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	lister := func() ([]string, error) { return []string{"other"}, nil }
+	if code := executeWithCodexLister([]string{"memory", "configure", "codex", "--yes"}, root, &stdout, &stderr, false, nil, lister); code != 0 {
+		t.Fatalf("configure Codex: code=%d stderr=%s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := execute([]string{"memory", "configure", "claude", "--yes"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("configure Claude Code: code=%d stderr=%s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := execute([]string{"memory", "status"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("status: code=%d stderr=%s", code, stderr.String())
+	}
+	for _, expected := range []string{"Modalidad: personal", "Codex: configurado", "Claude Code: configurado", "Conectividad: no verificada", "Memoria compartida: no verificada"} {
+		if !strings.Contains(stdout.String(), expected) {
+			t.Fatalf("status omitted %q: %s", expected, stdout.String())
+		}
+	}
+	if strings.Contains(stdout.String(), "ATOMICMEMORY_API_KEY") || strings.Contains(stdout.String(), "ATOMICMEMORY_SCOPE_USER") {
+		t.Fatalf("status leaked credential configuration: %s", stdout.String())
+	}
+}
+
 func TestSkillInstallRequiresSelectionAndExplicitYesWhenNonInteractive(t *testing.T) {
 	root := createRepo(t)
 	var stdout, stderr bytes.Buffer
@@ -640,7 +692,7 @@ func TestConfigureClaudeHelpShowsUsageOnce(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("execute() = %d", code)
 	}
-	if strings.Count(stderr.String(), "Uso: orbit memory configure") != 1 {
+	if strings.Count(stderr.String(), "Uso: orbit memory <status | configure") != 1 {
 		t.Fatalf("usage was not printed exactly once to stderr: %q", stderr.String())
 	}
 	if stdout.Len() != 0 {

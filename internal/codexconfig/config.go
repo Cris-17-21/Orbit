@@ -95,3 +95,14 @@ func HasAtomicMemoryServer(names []string) bool {
 	}
 	return false
 }
+
+// HasAtomicMemoryConfig reports whether project TOML contains the namespaced
+// Atomic Memory MCP server. It intentionally discards all configured values.
+func HasAtomicMemoryConfig(data []byte) (bool, error) {
+	var config codexConfig
+	if err := toml.Unmarshal(data, &config); err != nil {
+		return false, errors.New("Codex devolvió una configuración TOML no válida")
+	}
+	_, found := config.MCPServers[ServerName]
+	return found, nil
+}
