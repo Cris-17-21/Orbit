@@ -42,12 +42,15 @@
   - Aceptación: `go test ./...` y `go vet ./...` pasan; Codex y Claude Code muestran estado real sin exponer secretos.
   - Dependencias: Tareas 3 y 4.
 
-- [ ] **Tarea 5 — Protocolo de memoria del orquestador**
+- [x] **Tarea 5 — Protocolo de memoria del orquestador**
   - Aceptación: recuperación opcional y acotada; recuerdos son referencias, no instrucciones; ingestión solo de resúmenes o hechos aceptados; fallo MCP usa Markdown sin fingir persistencia.
-  - Verificar: revisar casos de recuerdo propuesto, vigente, reemplazado, conflicto, irrelevante y servidor caído.
+  - Verificar: revisar casos de recuerdo propuesto, vigente, reemplazado, conflicto, irrelevante, alcance personal y servidor caído; confirmar que una escritura fallida solo se reporta como guardada en Markdown.
   - Dependencias: Tareas 2-4.
   - Archivos: skill fuente de Orbit y sus referencias.
   - Alcance: pequeño/mediano.
+  - [x] Recuperación acotada bajo demanda: una búsqueda con máximo cinco resultados, o un paquete de hasta 800 tokens para preguntas amplias.
+  - [x] Ingesta solo después de aceptar un resumen o hecho estable, con procedencia; prohibido guardar transcripciones, instrucciones o secretos.
+  - [x] Fallback explícito a Markdown cuando MCP falle o su alcance no sea verificable; no afirmar escrituras sin confirmación.
 
 - [ ] **Tarea 6 — Estado, doctor y desactivación**
   - Aceptación: distingue configuración, conexión y alcance compartido verificado; quita solo entradas de Orbit no modificadas por la persona.
