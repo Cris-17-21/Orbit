@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,6 +41,179 @@ func TestInitYesCreatesFilesAndReportsSummary(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, ".orbit", "atomic-memory.json")); err != nil {
 		t.Fatalf("Atomic Memory project config was not created: %v", err)
+	}
+}
+
+func TestSkillInstallRequiresSelectionAndExplicitYesWhenNonInteractive(t *testing.T) {
+	root := createRepo(t)
+	var stdout, stderr bytes.Buffer
+	code := execute([]string{"skill", "install", "--codex"}, root, &stdout, &stderr, false, nil)
+	if code == 0 || !strings.Contains(stderr.String(), "--yes") {
+		t.Fatalf("expected non-interactive confirmation requirement; code=%d stderr=%s", code, stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(root, ".agents", "skills", "orbit", "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("skill was written without confirmation: %v", err)
+	}
+}
+
+func TestSkillInstallDryRunShowsPlanWithoutWriting(t *testing.T) {
+	root := createRepo(t)
+	var stdout, stderr bytes.Buffer
+	code := execute([]string{"skill", "install", "--claude", "--dry-run"}, root, &stdout, &stderr, false, nil)
+	if code != 0 {
+		t.Fatalf("execute() = %d, stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), ".claude/skills/orbit/SKILL.md") {
+		t.Fatalf("plan omitted Claude destination: %s", stdout.String())
+	}
+	if _, err := os.Stat(filepath.Join(root, ".claude")); !os.IsNotExist(err) {
+		t.Fatalf("dry run wrote files: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".orbit")); !os.IsNotExist(err) {
+		t.Fatalf("dry run wrote manifest: %v", err)
+	}
+}
+
+func TestSkillInstallYesAppliesSelectedAgentsAndManifest(t *testing.T) {
+	root := createRepo(t)
+	var stdout, stderr bytes.Buffer
+	code := execute([]string{"skill", "install", "--codex", "--antigravity", "--yes"}, root, &stdout, &stderr, false, nil)
+	if code != 0 {
+		t.Fatalf("execute() = %d, stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Codex y Antigravity") {
+		t.Fatalf("shared destination explanation missing: %s", stdout.String())
+	}
+	if _, err := os.Stat(filepath.Join(root, ".agents", "skills", "orbit", "SKILL.md")); err != nil {
+		t.Fatalf("shared skill missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".claude")); !os.IsNotExist(err) {
+		t.Fatalf("unselected Claude destination was written: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".orbit", "manifest.json")); err != nil {
+		t.Fatalf("manifest missing: %v", err)
+	}
+}
+
+func TestSkillInstallAndInitWorkInEitherOrder(t *testing.T) {
+	for _, initFirst := range []bool{true, false} {
+		name := "skill-first"
+		if initFirst {
+			name = "init-first"
+		}
+		t.Run(name, func(t *testing.T) {
+			root := createRepo(t)
+			var stdout, stderr bytes.Buffer
+			run := func(args ...string) {
+				t.Helper()
+				stdout.Reset()
+				stderr.Reset()
+				if code := execute(args, root, &stdout, &stderr, false, nil); code != 0 {
+					t.Fatalf("execute(%v) = %d; stdout=%s stderr=%s", args, code, stdout.String(), stderr.String())
+				}
+			}
+			if initFirst {
+				run("init", "--yes")
+			}
+			run("skill", "install", "--codex", "--yes")
+			if !initFirst {
+				run("init", "--yes")
+			}
+			skillPath := filepath.Join(root, ".agents", "skills", "orbit", "SKILL.md")
+			originalSkill, err := os.ReadFile(skillPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			run("init", "--yes")
+			finalSkill, err := os.ReadFile(skillPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(originalSkill, finalSkill) {
+				t.Fatal("orbit init changed the installed skill")
+			}
+			manifestBytes, err := os.ReadFile(filepath.Join(root, ".orbit", "manifest.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var manifest initmemory.Manifest
+			if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+				t.Fatal(err)
+			}
+			if len(manifest.Resources) != 5 {
+				t.Fatalf("manifest has %d resources, want 5 (four init resources plus skill)", len(manifest.Resources))
+			}
+		})
+	}
+}
+
+func TestSkillInstallConflictPreservesTargetAndInstallsIndependentDestination(t *testing.T) {
+	root := createRepo(t)
+	conflictPath := filepath.Join(root, ".agents", "skills", "orbit", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(conflictPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	want := []byte("user-owned skill\n")
+	if err := os.WriteFile(conflictPath, want, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := execute([]string{"skill", "install", "--codex", "--claude", "--yes"}, root, &stdout, &stderr, false, nil)
+	if code == 0 || !strings.Contains(stdout.String(), "conflictos: 1") {
+		t.Fatalf("expected reported conflict; code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	got, err := os.ReadFile(conflictPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("user-owned skill changed: %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".claude", "skills", "orbit", "SKILL.md")); err != nil {
+		t.Fatalf("independent Claude destination was not installed: %v", err)
+	}
+}
+
+func TestSkillInstallRejectsAmbiguousFlags(t *testing.T) {
+	root := createRepo(t)
+	for _, args := range [][]string{{"skill", "install", "--dry-run", "--yes", "--codex"}, {"skill", "install", "--codex", "--agent", "claude"}, {"skill", "install"}} {
+		var stdout, stderr bytes.Buffer
+		if code := execute(args, root, &stdout, &stderr, false, nil); code == 0 {
+			t.Errorf("execute(%v) unexpectedly succeeded", args)
+		}
+	}
+}
+
+func TestSkillInstallCancellationDoesNotWrite(t *testing.T) {
+	root := createRepo(t)
+	var stdout, stderr bytes.Buffer
+	confirm := func(_ initmemory.ManagedFilesPlan, _ io.Reader, _ io.Writer) (bool, error) { return false, nil }
+	code := runSkillInstallWithConfirmation([]string{"--claude"}, root, &stdout, &stderr, true, confirm)
+	if code != 0 || !strings.Contains(stdout.String(), "Cancelado") {
+		t.Fatalf("expected clean cancellation; code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(root, ".claude")); !os.IsNotExist(err) {
+		t.Fatalf("cancelled install wrote destination: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".orbit")); !os.IsNotExist(err) {
+		t.Fatalf("cancelled install wrote manifest: %v", err)
+	}
+}
+
+func TestSkillAgentSelectorRequiresExplicitChoice(t *testing.T) {
+	model := skillAgentSelector{selected: make(map[int]bool)}
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	selection := updated.(skillAgentSelector)
+	if !selection.done || len(selection.selected) != 0 {
+		t.Fatalf("empty selector result should remain unselected: %#v", selection)
+	}
+	model = skillAgentSelector{selected: make(map[int]bool)}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeySpace})
+	model = updated.(skillAgentSelector)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	selection = updated.(skillAgentSelector)
+	if !selection.done || !selection.selected[0] || selection.selected[1] || selection.selected[2] {
+		t.Fatalf("selector did not preserve explicit selection: %#v", selection)
 	}
 }
 
