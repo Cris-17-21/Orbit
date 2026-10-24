@@ -57,7 +57,7 @@
   - Alcance: mediano.
   - [x] **Subcorte 6.1 — `orbit memory status`:** informa modalidad del proyecto y presencia de entradas MCP en Codex/Claude; no revela variables configuradas ni afirma conectividad o memoria compartida.
   - [x] Subcorte 6.2 — `orbit doctor`: detecta los CLI disponibles, consulta listas MCP de Codex/Claude, muestra presencia de variables requeridas sin sus valores y separa evidencia reportada de memoria compartida verificada.
-  - [ ] Subcorte 6.3 — `orbit memory disable`: desactivación revisable que solo quite recursos propiedad de Orbit y no modificados por la persona.
+  - [x] Subcorte 6.3 — `orbit memory disable`: desactivación revisable que solo quite recursos propiedad de Orbit y no modificados por la persona.
 
 - [ ] **Checkpoint final — Aceptación del piloto**
   - Aceptación: validación automática pasa; memoria personal queda aislada; modo compartido solo se declara si prueba con dos identidades pasa; secretos ausentes del diff; fallback Markdown comprobado.

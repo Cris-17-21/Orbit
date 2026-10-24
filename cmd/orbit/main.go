@@ -433,6 +433,9 @@ func runMemory(args []string, workingDirectory string, stdout, stderr io.Writer,
 		}
 		return runMemoryStatus(workingDirectory, stdout, stderr)
 	}
+	if args[0] == "disable" {
+		return runMemoryDisable(args[1:], workingDirectory, stdout, stderr, interactive, confirm)
+	}
 	if args[0] != "configure" {
 		fmt.Fprintf(stderr, "Orbit: subcomando de memoria desconocido %q\n", args[0])
 		printMemoryHelp(stderr)
@@ -454,6 +457,78 @@ func runMemory(args []string, workingDirectory string, stdout, stderr io.Writer,
 		printMemoryHelp(stderr)
 		return 2
 	}
+}
+
+func runMemoryDisable(args []string, workingDirectory string, stdout, stderr io.Writer, interactive bool, confirm confirmationFunc) int {
+	flags := flag.NewFlagSet("orbit memory disable", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	yes := flags.Bool("yes", false, "aplica la vista previa sin confirmación interactiva")
+	flags.Usage = func() { printMemoryHelp(stderr) }
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintf(stderr, "Orbit: argumento inesperado %q\n", flags.Arg(0))
+		printMemoryHelp(stderr)
+		return 2
+	}
+	root, err := initmemory.FindGitRoot(workingDirectory)
+	if err != nil {
+		fmt.Fprintln(stderr, "Orbit:", err)
+		return 1
+	}
+	plan, err := initmemory.PlanMemoryDisable(root)
+	if err != nil {
+		fmt.Fprintln(stderr, "Orbit: no se pudo preparar la desactivación:", err)
+		return 1
+	}
+	confirmationPlan := initmemory.Plan{Root: root}
+	actionCount := 0
+	fmt.Fprintln(stdout, "Orbit quitará únicamente configuraciones de Atomic Memory intactas y registradas en su manifiesto:")
+	for _, entry := range plan.Entries {
+		switch entry.Status {
+		case initmemory.StatusPresent:
+			fmt.Fprintf(stdout, "  − %s\n", entry.Path)
+			confirmationPlan.Entries = append(confirmationPlan.Entries, initmemory.Entry{Path: entry.Path, Status: initmemory.StatusModified, Reason: "se quitará porque sigue intacta y pertenece a Orbit"})
+			actionCount++
+		case initmemory.StatusModified, initmemory.StatusConflict:
+			fmt.Fprintf(stdout, "  = conservar %s — %s\n", entry.Path, entry.Reason)
+		}
+	}
+	fmt.Fprintln(stdout, "Se conservará la memoria Markdown del proyecto.")
+	if actionCount == 0 {
+		fmt.Fprintln(stdout, "No hay configuraciones intactas de Atomic Memory administradas por Orbit para quitar.")
+		return 0
+	}
+	if !*yes {
+		if !interactive {
+			fmt.Fprintln(stderr, "Orbit: este comando requiere confirmación; ejecútalo en una terminal o pasa --yes para aplicar la vista previa")
+			return 2
+		}
+		if confirm == nil {
+			fmt.Fprintln(stderr, "Orbit: la confirmación interactiva no está disponible")
+			return 2
+		}
+		accepted, confirmErr := confirm(confirmationPlan)
+		if confirmErr != nil {
+			fmt.Fprintln(stderr, "Orbit: falló la confirmación:", confirmErr)
+			return 1
+		}
+		if !accepted {
+			fmt.Fprintln(stdout, "Cancelado. No se escribió ningún archivo.")
+			return 0
+		}
+	}
+	if err := initmemory.ApplyMemoryDisable(plan); err != nil {
+		fmt.Fprintln(stderr, "Orbit: no se completó la desactivación:", err)
+		return 1
+	}
+	fmt.Fprintln(stdout, "La desactivación de Orbit se aplicó a las configuraciones intactas; la memoria Markdown se conservó.")
+	fmt.Fprintln(stdout, "Revisa las configuraciones conservadas si también deseas desactivar esos servidores MCP modificados.")
+	return 0
 }
 
 func runMemoryStatus(workingDirectory string, stdout, stderr io.Writer) int {
@@ -855,7 +930,7 @@ func printHelp(out io.Writer) {
 	fmt.Fprintln(out, "Comandos:")
 	fmt.Fprintln(out, "  init       Inicializa la memoria Markdown del proyecto")
 	fmt.Fprintln(out, "  doctor     Diagnostica la configuración de Atomic Memory y los agentes disponibles")
-	fmt.Fprintln(out, "  memory     Configura una integración personal de Atomic Memory")
+	fmt.Fprintln(out, "  memory     Consulta, configura o desactiva Atomic Memory para el proyecto")
 	fmt.Fprintln(out, "  skill      Instala skills de Orbit en un proyecto")
 	fmt.Fprintln(out, "  help       Muestra esta ayuda")
 }
@@ -868,8 +943,9 @@ func printSkillHelp(out io.Writer) {
 }
 
 func printMemoryHelp(out io.Writer) {
-	fmt.Fprintln(out, "Uso: orbit memory <status | configure <codex|claude> [--backend hosted-cloud|connected-local|self-hosted] [--api-url URL] [--yes]>")
+	fmt.Fprintln(out, "Uso: orbit memory <status | disable [--yes] | configure <codex|claude> [--backend hosted-cloud|connected-local|self-hosted] [--api-url URL] [--yes]>")
 	fmt.Fprintln(out, "  status     Muestra la configuración MCP de proyecto sin revelar valores sensibles")
+	fmt.Fprintln(out, "  disable    Quita configuraciones MCP intactas propiedad de Orbit; conserva los archivos modificados y la memoria Markdown")
 	fmt.Fprintln(out, "Configura Atomic Memory para la persona actual y el agente indicado, con una vista previa revisable.")
 	fmt.Fprintln(out, "Sin --backend, conserva el backend del proyecto; si está desactivado, usa hosted-cloud.")
 	fmt.Fprintln(out, "Las claves API y la identidad personal deben estar en el entorno local, nunca en Git.")
