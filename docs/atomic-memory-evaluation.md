@@ -50,6 +50,46 @@ Usar registros sintéticos. Ingresar hechos resumidos o traspasos, nunca transcr
 - El host informa si el servidor MCP está configurado y accesible. Configurado pero no verificado no equivale a conectado.
 - El equipo registra tiempo de configuración, credenciales requeridas, costos de servicio/modelo, ubicación de datos y pasos de limpieza.
 
+## Registro de ejecución
+
+Completar una copia de este registro por cada backend y combinación de agentes. No incluir claves, tokens, correos ni identificadores personales; usar etiquetas como `A` y `B` y referencias redactadas a la evidencia.
+
+```text
+Estado: pendiente | aprobado | bloqueado
+Fecha:
+Backend, plan y versión:
+Hosts/agentes y versiones:
+Identidades A y B autenticadas por separado: sí | no | no comprobado
+Membresía del mismo espacio y mecanismo documentado:
+Alcance y visibilidad observados por cada identidad:
+
+Caso: A guarda recuerdo personal; B no lo recupera
+Resultado: pasa | falla | no ejecutado
+Evidencia redactada:
+
+Caso: A guarda recuerdo compartido; B lo recupera con referencia y procedencia
+Resultado: pasa | falla | no ejecutado
+Evidencia redactada:
+
+Caso: una propuesta no se trata como regla vigente sin aprobación
+Resultado: pasa | falla | no ejecutado
+Evidencia redactada:
+
+Caso: reemplazo conserva historial y enlace a la aprobación
+Resultado: pasa | falla | no ejecutado
+Evidencia redactada:
+
+Secretos ausentes de Git, salida y evidencia: sí | no
+Tiempo de configuración y costos observados:
+Ubicación/retención de datos conocida: sí | no; detalle:
+Datos sintéticos y espacio de prueba eliminados: sí | no | pendiente
+Limitaciones o bloqueos:
+Conclusión: Markdown solamente | Atomic Memory personal | Atomic Memory compartida verificada
+Responsable y referencia de revisión:
+```
+
+La conclusión `Atomic Memory compartida verificada` requiere que pasen los criterios de identidad, aislamiento y recuperación compartida. Si algún caso no se ejecutó, la modalidad correspondiente queda pendiente; no se infiere a partir de una configuración MCP presente.
+
 ## Decisión posterior al piloto
 
 Elegir entre:
