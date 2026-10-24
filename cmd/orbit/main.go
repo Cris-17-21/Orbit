@@ -52,6 +52,13 @@ func executeWithCodexLister(args []string, workingDirectory string, stdout, stde
 	switch args[0] {
 	case "init":
 		return runInit(args[1:], workingDirectory, stdout, stderr, interactive, confirm)
+	case "doctor":
+		if len(args) != 1 {
+			fmt.Fprintf(stderr, "Orbit: argumento inesperado %q\n", args[1])
+			printHelp(stderr)
+			return 2
+		}
+		return runDoctor(workingDirectory, stdout, stderr, defaultDoctorDependencies())
 	case "skill":
 		return runSkill(args[1:], workingDirectory, stdout, stderr, interactive)
 	case "memory":
@@ -64,6 +71,102 @@ func executeWithCodexLister(args []string, workingDirectory string, stdout, stde
 		printHelp(stderr)
 		return 2
 	}
+}
+
+type doctorDependencies struct {
+	lookPath   func(string) (string, error)
+	listCodex  codexServerLister
+	listClaude func() (string, error)
+	getenv     func(string) string
+}
+
+func defaultDoctorDependencies() doctorDependencies {
+	return doctorDependencies{
+		lookPath:   exec.LookPath,
+		listCodex:  listCodexServers,
+		listClaude: listClaudeServers,
+		getenv:     os.Getenv,
+	}
+}
+
+func runDoctor(workingDirectory string, stdout, stderr io.Writer, deps doctorDependencies) int {
+	root, err := initmemory.FindGitRoot(workingDirectory)
+	if err != nil {
+		fmt.Fprintln(stderr, "Orbit:", err)
+		return 1
+	}
+	fmt.Fprintln(stdout, "Orbit · Diagnóstico de Atomic Memory")
+	configPath := filepath.Join(root, ".orbit", "atomic-memory.json")
+	configBytes, err := os.ReadFile(configPath)
+	var config atomicmemory.Config
+	if errors.Is(err, os.ErrNotExist) {
+		fmt.Fprintln(stdout, "Atomic Memory: sin configurar en este proyecto")
+	} else if err != nil {
+		fmt.Fprintln(stdout, "Atomic Memory: no se pudo leer la configuración")
+	} else if config, err = atomicmemory.ParseConfig(configBytes); err != nil {
+		fmt.Fprintln(stdout, "Atomic Memory: configuración inválida")
+	} else if config.Mode == atomicmemory.ModeDisabled {
+		fmt.Fprintln(stdout, "Atomic Memory: modalidad desactivada")
+	} else {
+		fmt.Fprintf(stdout, "Atomic Memory: modalidad %s (%s)\n", config.Mode, config.Backend)
+		for _, name := range []string{"ATOMICMEMORY_API_KEY", "ATOMICMEMORY_SCOPE_USER"} {
+			state := "falta"
+			if deps.getenv != nil && deps.getenv(name) != "" {
+				state = "definida"
+			}
+			fmt.Fprintf(stdout, "  %s: %s\n", name, state)
+		}
+	}
+
+	codexPath, codexErr := deps.lookPath("codex")
+	if codexErr != nil {
+		fmt.Fprintln(stdout, "Codex: CLI no detectado")
+	} else if deps.listCodex == nil {
+		fmt.Fprintln(stdout, "Codex: CLI detectado; no se pudo consultar MCP")
+	} else if servers, listErr := deps.listCodex(); listErr != nil {
+		fmt.Fprintf(stdout, "Codex: CLI detectado (%s); no se pudo consultar MCP\n", filepath.Base(codexPath))
+	} else if codexconfig.HasAtomicMemoryServer(servers) {
+		fmt.Fprintln(stdout, "Codex: servidor registrado; conexión no verificada por el CLI (usa `/mcp` en Codex)")
+	} else {
+		fmt.Fprintln(stdout, "Codex: Atomic Memory no aparece en `codex mcp list`")
+	}
+
+	claudePath, claudeErr := deps.lookPath("claude")
+	if claudeErr != nil {
+		fmt.Fprintln(stdout, "Claude Code: CLI no detectado")
+	} else if deps.listClaude == nil {
+		fmt.Fprintln(stdout, "Claude Code: CLI detectado; no se pudo consultar MCP")
+	} else if result, listErr := deps.listClaude(); listErr != nil {
+		fmt.Fprintf(stdout, "Claude Code: CLI detectado (%s); no se pudo consultar MCP\n", filepath.Base(claudePath))
+	} else {
+		fmt.Fprintf(stdout, "Claude Code: %s\n", classifyClaudeAtomicMemoryStatus(result))
+	}
+	fmt.Fprintln(stdout, "Memoria compartida: no verificada; requiere validar el alcance con dos colaboradores.")
+	return 0
+}
+
+func classifyClaudeAtomicMemoryStatus(output string) string {
+	for _, line := range strings.Split(output, "\n") {
+		lower := strings.ToLower(line)
+		if !strings.Contains(lower, claudecodeconfig.ServerName) {
+			continue
+		}
+		switch {
+		case strings.Contains(lower, "pending approval"):
+			return "pendiente de aprobación (según `claude mcp list`)"
+		case strings.Contains(lower, "needs authentication"):
+			return "requiere autenticación (según `claude mcp list`)"
+		case strings.Contains(lower, "failed to connect"):
+			return "fallo al conectar (según `claude mcp list`)"
+		case strings.Contains(lower, "connected"):
+			return "estado conectado reportado por `claude mcp list`"
+		case strings.Contains(lower, "disabled"):
+			return "deshabilitado (según `claude mcp list`)"
+		default:
+			return "servidor listado; estado no reconocido por Orbit"
+		}
+	}
+	return "Atomic Memory no aparece en `claude mcp list`"
 }
 
 func runSkill(args []string, workingDirectory string, stdout, stderr io.Writer, interactive bool) int {
@@ -668,6 +771,16 @@ func listCodexServers() ([]string, error) {
 	return codexconfig.ParseServerNames(output)
 }
 
+func listClaudeServers() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, "claude", "mcp", "list").Output()
+	if err != nil {
+		return "", errors.New("Claude Code no pudo listar sus servidores MCP")
+	}
+	return string(output), nil
+}
+
 func runInit(args []string, workingDirectory string, stdout, stderr io.Writer, interactive bool, confirm confirmationFunc) int {
 	flags := flag.NewFlagSet("orbit init", flag.ContinueOnError)
 	flags.SetOutput(stderr)
@@ -741,6 +854,7 @@ func printHelp(out io.Writer) {
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "Comandos:")
 	fmt.Fprintln(out, "  init       Inicializa la memoria Markdown del proyecto")
+	fmt.Fprintln(out, "  doctor     Diagnostica la configuración de Atomic Memory y los agentes disponibles")
 	fmt.Fprintln(out, "  memory     Configura una integración personal de Atomic Memory")
 	fmt.Fprintln(out, "  skill      Instala skills de Orbit en un proyecto")
 	fmt.Fprintln(out, "  help       Muestra esta ayuda")

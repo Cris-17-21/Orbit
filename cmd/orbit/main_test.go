@@ -96,6 +96,66 @@ func TestMemoryStatusReportsConfiguredHostsWithoutLeakingSecrets(t *testing.T) {
 	}
 }
 
+func TestDoctorReportsHostEvidenceAndNeverPrintsCredentialValues(t *testing.T) {
+	root := createRepo(t)
+	var stdout, stderr bytes.Buffer
+	if code := execute([]string{"init", "--yes"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("initialize project: code=%d stderr=%s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := runMemoryConfigureClaude([]string{"--yes"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("configure Atomic Memory: code=%d stderr=%s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	deps := doctorDependencies{
+		lookPath:   func(name string) (string, error) { return name, nil },
+		listCodex:  func() ([]string, error) { return []string{"atomicmemory"}, nil },
+		listClaude: func() (string, error) { return "atomicmemory: ✘ Failed to connect", nil },
+		getenv: func(name string) string {
+			if name == "ATOMICMEMORY_API_KEY" {
+				return "do-not-print-this-key"
+			}
+			return "do-not-print-this-user"
+		},
+	}
+	if code := runDoctor(root, &stdout, &stderr, deps); code != 0 {
+		t.Fatalf("doctor: code=%d stderr=%s", code, stderr.String())
+	}
+	for _, expected := range []string{"Atomic Memory: modalidad personal", "Codex: servidor registrado; conexión no verificada", "Claude Code: fallo al conectar (según `claude mcp list`)", "ATOMICMEMORY_API_KEY: definida", "ATOMICMEMORY_SCOPE_USER: definida", "Memoria compartida: no verificada"} {
+		if !strings.Contains(stdout.String(), expected) {
+			t.Fatalf("doctor omitted %q: %s", expected, stdout.String())
+		}
+	}
+	for _, secret := range []string{"do-not-print-this-key", "do-not-print-this-user"} {
+		if strings.Contains(stdout.String()+stderr.String(), secret) {
+			t.Fatalf("doctor leaked a credential value: %s", stdout.String()+stderr.String())
+		}
+	}
+}
+
+func TestClassifyClaudeAtomicMemoryStatus(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		want   string
+	}{
+		{name: "pending approval", output: "atomicmemory: Pending approval", want: "pendiente de aprobación"},
+		{name: "authentication", output: "atomicmemory: Needs authentication", want: "requiere autenticación"},
+		{name: "failed", output: "atomicmemory: Failed to connect", want: "fallo al conectar"},
+		{name: "connected", output: "atomicmemory: Connected", want: "estado conectado reportado"},
+		{name: "absent", output: "other: Connected", want: "no aparece"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := classifyClaudeAtomicMemoryStatus(test.output); !strings.Contains(got, test.want) {
+				t.Fatalf("classifyClaudeAtomicMemoryStatus() = %q, want substring %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestSkillInstallRequiresSelectionAndExplicitYesWhenNonInteractive(t *testing.T) {
 	root := createRepo(t)
 	var stdout, stderr bytes.Buffer
