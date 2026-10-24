@@ -55,6 +55,9 @@
   - Dependencias: Tareas 2-5.
   - Archivos: CLI, adaptadores, manifiesto y pruebas (dividir en PR si excede cinco archivos).
   - Alcance: mediano.
+  - [x] **Subcorte 6.1 — `orbit memory status`:** informa modalidad del proyecto y presencia de entradas MCP en Codex/Claude; no revela variables configuradas ni afirma conectividad o memoria compartida.
+  - [ ] Subcorte 6.2 — `orbit doctor`: diagnóstico ampliado de herramientas/entorno y estado real MCP por host.
+  - [ ] Subcorte 6.3 — `orbit memory disable`: desactivación revisable que solo quite recursos propiedad de Orbit y no modificados por la persona.
 
 - [ ] **Checkpoint final — Aceptación del piloto**
   - Aceptación: validación automática pasa; memoria personal queda aislada; modo compartido solo se declara si prueba con dos identidades pasa; secretos ausentes del diff; fallback Markdown comprobado.

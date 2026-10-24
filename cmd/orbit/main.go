@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -321,6 +322,14 @@ func runMemory(args []string, workingDirectory string, stdout, stderr io.Writer,
 		printMemoryHelp(stdout)
 		return 0
 	}
+	if args[0] == "status" {
+		if len(args) != 1 {
+			fmt.Fprintf(stderr, "Orbit: argumento inesperado %q\n", args[1])
+			printMemoryHelp(stderr)
+			return 2
+		}
+		return runMemoryStatus(workingDirectory, stdout, stderr)
+	}
 	if args[0] != "configure" {
 		fmt.Fprintf(stderr, "Orbit: subcomando de memoria desconocido %q\n", args[0])
 		printMemoryHelp(stderr)
@@ -342,6 +351,68 @@ func runMemory(args []string, workingDirectory string, stdout, stderr io.Writer,
 		printMemoryHelp(stderr)
 		return 2
 	}
+}
+
+func runMemoryStatus(workingDirectory string, stdout, stderr io.Writer) int {
+	root, err := initmemory.FindGitRoot(workingDirectory)
+	if err != nil {
+		fmt.Fprintln(stderr, "Orbit:", err)
+		return 1
+	}
+	configPath := filepath.Join(root, ".orbit", "atomic-memory.json")
+	configBytes, err := os.ReadFile(configPath)
+	if errors.Is(err, os.ErrNotExist) {
+		fmt.Fprintln(stdout, "Atomic Memory: sin configurar en este proyecto (no se encontró .orbit/atomic-memory.json).")
+	} else if err != nil {
+		fmt.Fprintln(stderr, "Orbit: no se pudo leer la configuración de Atomic Memory:", err)
+		return 1
+	} else {
+		config, parseErr := atomicmemory.ParseConfig(configBytes)
+		if parseErr != nil {
+			fmt.Fprintln(stderr, "Orbit: configuración de Atomic Memory inválida:", parseErr)
+			return 1
+		}
+		modeLabel := string(config.Mode)
+		if config.Mode == atomicmemory.ModeDisabled {
+			modeLabel = "desactivada"
+		}
+		fmt.Fprintf(stdout, "Modalidad: %s\n", modeLabel)
+		if config.Backend != "" {
+			fmt.Fprintf(stdout, "Backend: %s\n", config.Backend)
+		}
+	}
+
+	printProjectMCPStatus(stdout, filepath.Join(root, ".codex", "config.toml"), filepath.Join(root, ".mcp.json"))
+	fmt.Fprintln(stdout, "Conectividad: no verificada por `orbit memory status`; revisa el estado MCP en tu agente.")
+	fmt.Fprintln(stdout, "Memoria compartida: no verificada; requiere validar el alcance con dos colaboradores.")
+	return 0
+}
+
+func printProjectMCPStatus(out io.Writer, codexPath, claudePath string) {
+	codexStatus := "no configurado"
+	if data, err := os.ReadFile(codexPath); err == nil {
+		if found, parseErr := codexconfig.HasAtomicMemoryConfig(data); parseErr != nil {
+			codexStatus = "no se pudo inspeccionar"
+		} else if found {
+			codexStatus = "configurado en el proyecto"
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		codexStatus = "no se pudo inspeccionar"
+	}
+	claudeStatus := "no configurado"
+	if data, err := os.ReadFile(claudePath); err == nil {
+		var config struct {
+			MCPServers map[string]json.RawMessage `json:"mcpServers"`
+		}
+		if json.Unmarshal(data, &config) != nil {
+			claudeStatus = "no se pudo inspeccionar"
+		} else if _, found := config.MCPServers[claudecodeconfig.ServerName]; found {
+			claudeStatus = "configurado en el proyecto"
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		claudeStatus = "no se pudo inspeccionar"
+	}
+	fmt.Fprintf(out, "Codex: %s\nClaude Code: %s\n", codexStatus, claudeStatus)
 }
 
 func runMemoryConfigureClaude(args []string, workingDirectory string, stdout, stderr io.Writer, interactive bool, confirm confirmationFunc) int {
@@ -683,7 +754,8 @@ func printSkillHelp(out io.Writer) {
 }
 
 func printMemoryHelp(out io.Writer) {
-	fmt.Fprintln(out, "Uso: orbit memory configure <codex|claude> [--backend hosted-cloud|connected-local|self-hosted] [--api-url URL] [--yes]")
+	fmt.Fprintln(out, "Uso: orbit memory <status | configure <codex|claude> [--backend hosted-cloud|connected-local|self-hosted] [--api-url URL] [--yes]>")
+	fmt.Fprintln(out, "  status     Muestra la configuración MCP de proyecto sin revelar valores sensibles")
 	fmt.Fprintln(out, "Configura Atomic Memory para la persona actual y el agente indicado, con una vista previa revisable.")
 	fmt.Fprintln(out, "Sin --backend, conserva el backend del proyecto; si está desactivado, usa hosted-cloud.")
 	fmt.Fprintln(out, "Las claves API y la identidad personal deben estar en el entorno local, nunca en Git.")

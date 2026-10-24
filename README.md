@@ -14,4 +14,6 @@ Para compilar desde el código fuente se requiere Go 1.24 o posterior. Ejecuta `
 
 Después de `orbit init`, ejecuta `orbit memory configure codex` para revisar y activar el modo personal de Atomic Memory. El comando detecta un servidor Codex llamado `atomicmemory` para evitar duplicarlo. Si no existe, propone `.codex/config.toml`, que Codex solo carga en proyectos de confianza.
 
+Usa `orbit memory status` para ver la modalidad configurada y si los archivos MCP del proyecto contienen la entrada `atomicmemory` para Codex o Claude Code. Este diagnóstico no comprueba la conexión del agente ni valida que la memoria sea compartida entre colaboradores.
+
 Orbit nunca guarda la clave API ni la identidad del colaborador en el repositorio. Cada persona configura localmente `ATOMICMEMORY_API_KEY` y `ATOMICMEMORY_SCOPE_USER` antes de iniciar Codex. La configuración de proyecto declara esas variables como referencias del entorno. Para elegir otro backend, usa `--backend connected-local` o `--backend self-hosted --api-url https://tu-servidor`; `--yes` aplica el plan sin confirmación interactiva.
