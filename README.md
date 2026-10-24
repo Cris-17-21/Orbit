@@ -16,6 +16,8 @@ Después de `orbit init`, ejecuta `orbit memory configure codex` para revisar y 
 
 Usa `orbit memory status` para ver la modalidad configurada y si los archivos MCP del proyecto contienen la entrada `atomicmemory` para Codex o Claude Code. Este diagnóstico no comprueba la conexión del agente ni valida que la memoria sea compartida entre colaboradores.
 
+Para desactivar la integración del proyecto, ejecuta `orbit memory disable`. Orbit muestra primero qué configuraciones intactas de su propiedad quitará; los archivos o entradas que hayan cambiado se conservan. La memoria Markdown del proyecto no se elimina. En entornos no interactivos, confirma la vista previa con `orbit memory disable --yes`.
+
 `orbit doctor` amplía el diagnóstico: detecta si están disponibles los CLI de Codex y Claude Code, consulta sus listas MCP y muestra únicamente si las variables locales requeridas están definidas, nunca sus valores. Codex informa servidores registrados; Claude Code informa el estado que muestra `claude mcp list`. Ninguno de esos resultados valida que la memoria sea compartida.
 
 Orbit nunca guarda la clave API ni la identidad del colaborador en el repositorio. Cada persona configura localmente `ATOMICMEMORY_API_KEY` y `ATOMICMEMORY_SCOPE_USER` antes de iniciar Codex. La configuración de proyecto declara esas variables como referencias del entorno. Para elegir otro backend, usa `--backend connected-local` o `--backend self-hosted --api-url https://tu-servidor`; `--yes` aplica el plan sin confirmación interactiva.

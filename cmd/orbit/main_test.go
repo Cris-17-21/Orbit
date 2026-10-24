@@ -96,6 +96,171 @@ func TestMemoryStatusReportsConfiguredHostsWithoutLeakingSecrets(t *testing.T) {
 	}
 }
 
+func TestMemoryDisableRemovesOnlyOrbitConfigurationAndKeepsMarkdownAndOtherClaudeServers(t *testing.T) {
+	root := createRepo(t)
+	var stdout, stderr bytes.Buffer
+	if code := execute([]string{"init", "--yes"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("initialize project: code=%d stderr=%s", code, stderr.String())
+	}
+	lister := func() ([]string, error) { return []string{"other"}, nil }
+	if code := executeWithCodexLister([]string{"memory", "configure", "codex", "--yes"}, root, &stdout, &stderr, false, nil, lister); code != 0 {
+		t.Fatalf("configure Codex: code=%d stderr=%s", code, stderr.String())
+	}
+	if code := execute([]string{"memory", "configure", "claude", "--yes"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("configure Claude Code: code=%d stderr=%s", code, stderr.String())
+	}
+	claudePath := filepath.Join(root, ".mcp.json")
+	claudeBytes, err := os.ReadFile(claudePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var claudeConfig map[string]any
+	if err := json.Unmarshal(claudeBytes, &claudeConfig); err != nil {
+		t.Fatal(err)
+	}
+	claudeConfig["mcpServers"].(map[string]any)["team-tool"] = map[string]any{"command": "team-tool"}
+	claudeBytes, _ = json.MarshalIndent(claudeConfig, "", "  ")
+	claudeBytes = append(claudeBytes, '\n')
+	if err := os.WriteFile(claudePath, claudeBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := execute([]string{"memory", "disable", "--yes"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("disable Atomic Memory: code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	if _, err := os.Stat(filepath.Join(root, ".orbit", "atomic-memory.json")); !os.IsNotExist(err) {
+		t.Fatalf("Orbit's Atomic Memory config was not removed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".codex", "config.toml")); !os.IsNotExist(err) {
+		t.Fatalf("Orbit's Codex config was not removed: %v", err)
+	}
+	updatedClaude, err := os.ReadFile(claudePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(updatedClaude, []byte("atomicmemory")) || !bytes.Contains(updatedClaude, []byte("team-tool")) {
+		t.Fatalf("disable did not remove only Orbit's Claude entry: %s", updatedClaude)
+	}
+	if _, err := os.Stat(filepath.Join(root, "project-context", "business-rules.md")); err != nil {
+		t.Fatalf("Markdown memory was removed: %v", err)
+	}
+	manifestBytes, err := os.ReadFile(filepath.Join(root, ".orbit", "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest initmemory.Manifest
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	for _, resource := range manifest.Resources {
+		if strings.Contains(resource.Target, "atomic-memory") || strings.Contains(resource.Target, "atomicmemory") {
+			t.Fatalf("removed integration remains in manifest: %+v", resource)
+		}
+	}
+}
+
+func TestMemoryDisablePreservesModifiedOrbitFilesAndRequiresConfirmation(t *testing.T) {
+	root := createRepo(t)
+	var stdout, stderr bytes.Buffer
+	if code := execute([]string{"init", "--yes"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("initialize project: code=%d stderr=%s", code, stderr.String())
+	}
+	if code := execute([]string{"memory", "configure", "claude", "--yes"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("configure Claude Code: code=%d stderr=%s", code, stderr.String())
+	}
+	configPath := filepath.Join(root, ".orbit", "atomic-memory.json")
+	if err := os.WriteFile(configPath, []byte("{\"mode\":\"personal\"}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := execute([]string{"memory", "disable"}, root, &stdout, &stderr, false, nil); code != 2 {
+		t.Fatalf("unconfirmed noninteractive disable returned %d, want 2", code)
+	}
+	if !strings.Contains(stderr.String(), "requiere confirmación") {
+		t.Fatalf("missing confirmation explanation: %s", stderr.String())
+	}
+	accept := func(plan initmemory.Plan) (bool, error) {
+		if len(plan.Entries) != 1 || !strings.HasPrefix(plan.Entries[0].Path, ".mcp.json") {
+			t.Fatalf("confirmation did not show exactly the removal: %+v", plan.Entries)
+		}
+		return false, nil
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := execute([]string{"memory", "disable"}, root, &stdout, &stderr, true, accept); code != 0 {
+		t.Fatalf("cancelled disable: code=%d stderr=%s", code, stderr.String())
+	}
+	if _, err := os.Stat(configPath); err != nil {
+		t.Fatalf("cancelled disable changed modified config: %v", err)
+	}
+	claudeBytes, err := os.ReadFile(filepath.Join(root, ".mcp.json"))
+	if err != nil || !bytes.Contains(claudeBytes, []byte("atomicmemory")) {
+		t.Fatalf("cancelled disable removed Claude configuration: err=%v config=%s", err, claudeBytes)
+	}
+}
+
+func TestMemoryDisablePreservesModifiedClaudeEntry(t *testing.T) {
+	root := createRepo(t)
+	var stdout, stderr bytes.Buffer
+	if code := execute([]string{"init", "--yes"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("initialize project: code=%d stderr=%s", code, stderr.String())
+	}
+	if code := execute([]string{"memory", "configure", "claude", "--yes"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("configure Claude Code: code=%d stderr=%s", code, stderr.String())
+	}
+	configPath := filepath.Join(root, ".mcp.json")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config map[string]any
+	if err := json.Unmarshal(data, &config); err != nil {
+		t.Fatal(err)
+	}
+	server := config["mcpServers"].(map[string]any)["atomicmemory"].(map[string]any)
+	server["args"] = []any{"user-customized"}
+	data, _ = json.MarshalIndent(config, "", "  ")
+	if err := os.WriteFile(configPath, append(data, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := execute([]string{"memory", "disable", "--yes"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("disable: code=%d stderr=%s", code, stderr.String())
+	}
+	updated, err := os.ReadFile(configPath)
+	if err != nil || !bytes.Contains(updated, []byte("user-customized")) {
+		t.Fatalf("modified Claude entry was not preserved: err=%v config=%s", err, updated)
+	}
+	if !strings.Contains(stdout.String(), "se conservará") {
+		t.Fatalf("preview did not explain preserving the modified Claude entry: %s", stdout.String())
+	}
+}
+
+func TestMemoryDisableRejectsStalePreview(t *testing.T) {
+	root := createRepo(t)
+	var stdout, stderr bytes.Buffer
+	if code := execute([]string{"init", "--yes"}, root, &stdout, &stderr, false, nil); code != 0 {
+		t.Fatalf("initialize project: code=%d stderr=%s", code, stderr.String())
+	}
+	plan, err := initmemory.PlanMemoryDisable(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(root, ".orbit", "atomic-memory.json")
+	if err := os.WriteFile(configPath, []byte("user edit\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := initmemory.ApplyMemoryDisable(plan); err == nil || !strings.Contains(err.Error(), "changed after the preview") {
+		t.Fatalf("stale disable plan returned %v", err)
+	}
+	if _, err := os.Stat(configPath); err != nil {
+		t.Fatalf("stale plan removed a changed file: %v", err)
+	}
+}
+
 func TestDoctorReportsHostEvidenceAndNeverPrintsCredentialValues(t *testing.T) {
 	root := createRepo(t)
 	var stdout, stderr bytes.Buffer
@@ -752,7 +917,7 @@ func TestConfigureClaudeHelpShowsUsageOnce(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("execute() = %d", code)
 	}
-	if strings.Count(stderr.String(), "Uso: orbit memory <status | configure") != 1 {
+	if strings.Count(stderr.String(), "Uso: orbit memory <status | disable") != 1 {
 		t.Fatalf("usage was not printed exactly once to stderr: %q", stderr.String())
 	}
 	if stdout.Len() != 0 {
